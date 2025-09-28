@@ -1,0 +1,80 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  apple_id      String?  @unique
+  email         String?  @unique
+  password      String?
+  created_at    DateTime @default(now())
+  last_login_at DateTime @default(now())
+
+  answers            Answer[]
+  QuestionUserPinned QuestionUserPinned[]
+
+  @@map("users")
+}
+
+model Category {
+  id         String   @id @default(cuid())
+  name       String
+  sequence   Int
+  created_at DateTime @default(now()) // 上传时间
+  updated_at DateTime @updatedAt // 更新时间
+
+  questions Question[]
+
+  @@map("categories")
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  title       String
+  category_id String
+  sequence    Int
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  category           Category             @relation(fields: [category_id], references: [id])
+  answers            Answer[]
+  QuestionUserPinned QuestionUserPinned[]
+
+  @@map("questions")
+}
+
+model QuestionUserPinned {
+  id          String @id @default(cuid())
+  question_id String
+  user_id     String
+
+  created_at DateTime @default(now())
+
+  question Question @relation(fields: [question_id], references: [id])
+  user     User     @relation(fields: [user_id], references: [id])
+
+  @@map("question_user_pinned")
+}
+
+model Answer {
+  id                String   @id @default(cuid())
+  content           String
+  user_id           String
+  question_id       String
+  question_snapshot String
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  user     User     @relation(fields: [user_id], references: [id])
+  question Question @relation(fields: [question_id], references: [id])
+
+  @@map("answers")
+}

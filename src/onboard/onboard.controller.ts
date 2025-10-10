@@ -6,9 +6,12 @@ import {
   Body,
   UseGuards,
   Request,
+  Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { OnboardService } from './onboard.service';
+import dayjs from 'dayjs';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -35,6 +38,30 @@ export class OnboardController {
     return this.onboardService.getHead(categoryId);
   }
 
+  @Get('questions')
+  @UseGuards(AuthGuard('jwt'))
+  getQuestions(@Request() req: AuthenticatedRequest) {
+    const userId = req.user.userId;
+    return this.onboardService.getQuestions(userId);
+  }
+
+  @Post('questions/pin')
+  @UseGuards(AuthGuard('jwt'))
+  pinQuestion(
+    @Request() req: AuthenticatedRequest,
+    @Body() body: { question_id: string; pinned: boolean },
+  ) {
+    const userId = req.user.userId;
+    if (!body.question_id || typeof body.pinned !== 'boolean') {
+      throw new BadRequestException('Question ID and pinned are required');
+    }
+    return this.onboardService.pinQuestion(
+      userId,
+      body.question_id,
+      body.pinned,
+    );
+  }
+
   @Post('answers')
   @UseGuards(AuthGuard('jwt'))
   async createAnswer(
@@ -57,5 +84,25 @@ export class OnboardController {
   async getAnswersByUser(@Request() req: AuthenticatedRequest) {
     const userId = req.user.userId;
     return this.onboardService.getAnswersByUser(userId);
+  }
+
+  @Get('calendar-view')
+  @UseGuards(AuthGuard('jwt'))
+  getCalendarView(
+    @Request() req: AuthenticatedRequest,
+    @Query('month') month: string,
+  ) {
+    const userId = req.user.userId;
+    if (!month) {
+      month = dayjs().format('YYYY-MM');
+    }
+    return this.onboardService.getCalendarView(userId, month);
+  }
+
+  @Get('thread-view')
+  @UseGuards(AuthGuard('jwt'))
+  getThreadView(@Request() req: AuthenticatedRequest) {
+    const userId = req.user.userId;
+    return this.onboardService.getThreadView(userId);
   }
 }

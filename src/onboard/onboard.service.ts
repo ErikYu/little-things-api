@@ -112,6 +112,109 @@ export class OnboardService {
     return { question_id: questionId, pinned };
   }
 
+  /**
+   * 获取用户在一个问题下面的所有回答
+   */
+  async getAnswers(
+    userId: string,
+    questionId: string,
+    limit?: number,
+    cursor?: string,
+  ) {
+    // 构建查询条件
+    const whereCondition: {
+      user_id: string;
+      question_id: string;
+      created_at?: { lt: Date };
+    } = {
+      user_id: userId,
+      question_id: questionId,
+    };
+
+    // 如果有 cursor，添加时间过滤条件
+    if (cursor) {
+      whereCondition.created_at = {
+        lt: new Date(cursor),
+      };
+    }
+
+    // 获取分页的回答数据
+    const answers = await this.prisma.answer.findMany({
+      where: whereCondition,
+      select: {
+        id: true,
+        content: true,
+        created_at: true,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+      take: limit ? limit + 1 : undefined, // 如果没有limit，则获取全部数据
+    });
+
+    // 判断是否有更多数据
+    const hasMore = limit ? answers.length > limit : false;
+    const actualAnswers = hasMore ? answers.slice(0, limit) : answers;
+
+    // 获取统计信息（需要单独查询，因为分页会影响统计）
+    const [totalCount, firstAnswer, lastAnswer] = await Promise.all([
+      this.prisma.answer.count({
+        where: {
+          user_id: userId,
+          question_id: questionId,
+        },
+      }),
+      this.prisma.answer.findFirst({
+        where: {
+          user_id: userId,
+          question_id: questionId,
+        },
+        select: { created_at: true },
+        orderBy: { created_at: 'asc' },
+      }),
+      this.prisma.answer.findFirst({
+        where: {
+          user_id: userId,
+          question_id: questionId,
+        },
+        select: { created_at: true },
+        orderBy: { created_at: 'desc' },
+      }),
+    ]);
+
+    // 计算统计信息
+    const daysOver = firstAnswer
+      ? dayjs().diff(dayjs(firstAnswer.created_at), 'day') + 1
+      : 0;
+    const nextCursor =
+      hasMore && actualAnswers.length > 0
+        ? actualAnswers[actualAnswers.length - 1].created_at.toISOString()
+        : null;
+
+    return {
+      summary: {
+        daysOver,
+        totalAnswers: totalCount,
+        firstAnswerAt: firstAnswer
+          ? dayjs(firstAnswer.created_at).format('YYYY-MM-DD')
+          : null,
+        lastAnswerAt: lastAnswer
+          ? dayjs(lastAnswer.created_at).format('YYYY-MM-DD')
+          : null,
+      },
+      answers: actualAnswers.map(answer => ({
+        id: answer.id,
+        content: answer.content,
+        created_at: dayjs(answer.created_at).format('YYYY-MM-DD'),
+      })),
+      pagination: {
+        limit: limit || null,
+        hasMore,
+        nextCursor,
+      },
+    };
+  }
+
   async createAnswer(userId: string, questionId: string, content: string) {
     // 验证问题是否存在并获取标题
     const question = await this.prisma.question.findUnique({
@@ -153,42 +256,6 @@ export class OnboardService {
     });
 
     return answer;
-  }
-
-  async getAnswersByQuestion(questionId: string) {
-    return this.prisma.answer.findMany({
-      where: { question_id: questionId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: { created_at: 'desc' },
-    });
-  }
-
-  async getAnswersByUser(userId: string) {
-    return this.prisma.answer.findMany({
-      where: { user_id: userId },
-      include: {
-        question: {
-          select: {
-            id: true,
-            title: true,
-            category: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { created_at: 'desc' },
-    });
   }
 
   async getCalendarView(userId: string, month: string) {

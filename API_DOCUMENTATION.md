@@ -175,66 +175,6 @@ Authorization: Bearer <your-jwt-token>
   }
   ```
 
-#### 3.2 获取指定问题的所有答案
-
-- **URL**: `GET /api/answers/question/:questionId`
-- **描述**: 获取指定问题下的所有答案
-- **认证**: 不需要
-- **路径参数**:
-  - `questionId`: 问题ID
-- **响应示例**:
-  ```json
-  {
-    "success": true,
-    "data": [
-      {
-        "id": "cludanswer123456789",
-        "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。",
-        "user_id": "clud1234567890abcdef",
-        "question_id": "cludquestion123456789",
-        "question_snapshot": "今天让你感到最温暖的小事是什么？",
-        "created_at": "2024-01-15T08:30:45.123Z",
-        "updated_at": "2024-01-15T08:30:45.123Z",
-        "user": {
-          "id": "clud1234567890abcdef",
-          "email": "user@privaterelay.appleid.com"
-        }
-      }
-    ]
-  }
-  ```
-
-#### 3.3 获取用户的所有答案
-
-- **URL**: `GET /api/answers`
-- **描述**: 获取当前用户的所有答案
-- **认证**: 需要
-- **响应示例**:
-  ```json
-  {
-    "success": true,
-    "data": [
-      {
-        "id": "cludanswer123456789",
-        "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。",
-        "user_id": "clud1234567890abcdef",
-        "question_id": "cludquestion123456789",
-        "question_snapshot": "今天让你感到最温暖的小事是什么？",
-        "created_at": "2024-01-15T08:30:45.123Z",
-        "updated_at": "2024-01-15T08:30:45.123Z",
-        "question": {
-          "id": "cludquestion123456789",
-          "title": "今天让你感到最温暖的小事是什么？",
-          "category": {
-            "id": "clud1234567890abcdef",
-            "name": "生活感悟"
-          }
-        }
-      }
-    ]
-  }
-  ```
-
 ### 4. 问题管理
 
 #### 4.1 获取问题列表

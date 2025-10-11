@@ -11,7 +11,6 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { OnboardService } from './onboard.service';
-import dayjs from 'dayjs';
 import { ApiOperation } from '@nestjs/swagger';
 
 interface AuthenticatedRequest extends Request {
@@ -72,13 +71,18 @@ export class OnboardController {
   @Post('answers')
   @UseGuards(AuthGuard('jwt'))
   async createAnswer(
-    @Body() body: { question_id: string; content: string },
+    @Body() body: { question_id: string; content: string; created_tms: string },
     @Request() req: AuthenticatedRequest,
   ) {
-    const { question_id, content } = body;
+    const { question_id, content, created_tms } = body;
     const userId = req.user.userId;
 
-    return this.onboardService.createAnswer(userId, question_id, content);
+    return this.onboardService.createAnswer(
+      userId,
+      question_id,
+      content,
+      created_tms,
+    );
   }
 
   @ApiOperation({ summary: '获取用户所有答案' })
@@ -86,7 +90,7 @@ export class OnboardController {
   @UseGuards(AuthGuard('jwt'))
   getAnswers(
     @Request() req: AuthenticatedRequest,
-    @Query('questionId') questionId: string,
+    @Query('question_id') questionId: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ) {
@@ -95,12 +99,13 @@ export class OnboardController {
       throw new BadRequestException('Question ID is required');
     }
     const pageLimit = limit ? parseInt(limit, 10) : undefined;
+    const pageCursor = cursor ? parseInt(cursor, 10) : undefined;
 
     return this.onboardService.getAnswers(
       userId,
       questionId,
       pageLimit,
-      cursor,
+      pageCursor,
     );
   }
 
@@ -109,13 +114,19 @@ export class OnboardController {
   @UseGuards(AuthGuard('jwt'))
   getCalendarView(
     @Request() req: AuthenticatedRequest,
-    @Query('month') month: string,
+    @Query('start') start: string,
+    @Query('end') end: string,
   ) {
     const userId = req.user.userId;
-    if (!month) {
-      month = dayjs().format('YYYY-MM');
+
+    if (!start || !end) {
+      throw new BadRequestException('Start and end are required');
     }
-    return this.onboardService.getCalendarView(userId, month);
+
+    return this.onboardService.getCalendarView(userId, {
+      start,
+      end,
+    });
   }
 
   @ApiOperation({ summary: '获取用户已pin问题的线程视图' })

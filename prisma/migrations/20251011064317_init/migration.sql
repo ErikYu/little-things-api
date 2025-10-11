@@ -46,10 +46,13 @@ CREATE TABLE "public"."question_user_pinned" (
 -- CreateTable
 CREATE TABLE "public"."answers" (
     "id" TEXT NOT NULL,
+    "sequence" SERIAL NOT NULL,
     "content" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "question_id" TEXT NOT NULL,
     "question_snapshot" TEXT NOT NULL,
+    "created_ymd" TEXT NOT NULL,
+    "created_tms" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -61,6 +64,9 @@ CREATE UNIQUE INDEX "users_apple_id_key" ON "public"."users"("apple_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "public"."users"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "answers_sequence_key" ON "public"."answers"("sequence");
 
 -- AddForeignKey
 ALTER TABLE "public"."questions" ADD CONSTRAINT "questions_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

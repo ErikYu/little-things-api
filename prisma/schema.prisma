@@ -66,10 +66,13 @@ model QuestionUserPinned {
 
 model Answer {
   id                String   @id @default(cuid())
+  sequence          Int      @unique @default(autoincrement())
   content           String
   user_id           String
   question_id       String
   question_snapshot String
+  created_ymd       String // 年月日
+  created_tms       String // 年月日时分秒
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
 

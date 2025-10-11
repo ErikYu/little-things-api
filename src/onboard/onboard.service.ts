@@ -119,22 +119,22 @@ export class OnboardService {
     userId: string,
     questionId: string,
     limit?: number,
-    cursor?: string,
+    cursor?: number,
   ) {
     // 构建查询条件
     const whereCondition: {
       user_id: string;
       question_id: string;
-      created_at?: { lt: Date };
+      sequence?: { lt: number };
     } = {
       user_id: userId,
       question_id: questionId,
     };
 
-    // 如果有 cursor，添加时间过滤条件
+    // 如果有 cursor，添加 sequence 过滤条件
     if (cursor) {
-      whereCondition.created_at = {
-        lt: new Date(cursor),
+      whereCondition.sequence = {
+        lt: cursor,
       };
     }
 
@@ -143,11 +143,13 @@ export class OnboardService {
       where: whereCondition,
       select: {
         id: true,
+        sequence: true,
         content: true,
-        created_at: true,
+        created_ymd: true,
+        created_tms: true,
       },
       orderBy: {
-        created_at: 'desc',
+        sequence: 'desc',
       },
       take: limit ? limit + 1 : undefined, // 如果没有limit，则获取全部数据
     });
@@ -169,16 +171,16 @@ export class OnboardService {
           user_id: userId,
           question_id: questionId,
         },
-        select: { created_at: true },
-        orderBy: { created_at: 'asc' },
+        select: { created_at: true, created_ymd: true },
+        orderBy: { sequence: 'asc' },
       }),
       this.prisma.answer.findFirst({
         where: {
           user_id: userId,
           question_id: questionId,
         },
-        select: { created_at: true },
-        orderBy: { created_at: 'desc' },
+        select: { created_at: true, created_ymd: true },
+        orderBy: { sequence: 'desc' },
       }),
     ]);
 
@@ -188,24 +190,21 @@ export class OnboardService {
       : 0;
     const nextCursor =
       hasMore && actualAnswers.length > 0
-        ? actualAnswers[actualAnswers.length - 1].created_at.toISOString()
+        ? actualAnswers[actualAnswers.length - 1].sequence
         : null;
 
     return {
       summary: {
         daysOver,
         totalAnswers: totalCount,
-        firstAnswerAt: firstAnswer
-          ? dayjs(firstAnswer.created_at).format('YYYY-MM-DD')
-          : null,
-        lastAnswerAt: lastAnswer
-          ? dayjs(lastAnswer.created_at).format('YYYY-MM-DD')
-          : null,
+        firstAnswerAt: firstAnswer ? firstAnswer.created_ymd : null,
+        lastAnswerAt: lastAnswer ? lastAnswer.created_ymd : null,
       },
       answers: actualAnswers.map(answer => ({
         id: answer.id,
         content: answer.content,
-        created_at: dayjs(answer.created_at).format('YYYY-MM-DD'),
+        created_ymd: answer.created_ymd,
+        created_tms: answer.created_tms,
       })),
       pagination: {
         limit: limit || null,
@@ -215,7 +214,12 @@ export class OnboardService {
     };
   }
 
-  async createAnswer(userId: string, questionId: string, content: string) {
+  async createAnswer(
+    userId: string,
+    questionId: string,
+    content: string,
+    created_tms: string,
+  ) {
     // 验证问题是否存在并获取标题
     const question = await this.prisma.question.findUnique({
       where: { id: questionId },
@@ -225,13 +229,25 @@ export class OnboardService {
       throw new NotFoundException('Question not found');
     }
 
+    const createdYmd = dayjs(created_tms).format('YYYY-MM-DD');
+    // const createdTms = dayjs(created_at).format('YYYY-MM-DD HH:mm:ss');
+
     // 创建答案
     const answer = await this.prisma.answer.create({
+      omit: {
+        created_at: true,
+        updated_at: true,
+        sequence: true,
+        user_id: true,
+        question_id: true,
+      },
       data: {
         content,
         user_id: userId,
         question_id: questionId,
         question_snapshot: question.title,
+        created_ymd: createdYmd,
+        created_tms: created_tms,
       },
       include: {
         user: {
@@ -258,18 +274,24 @@ export class OnboardService {
     return answer;
   }
 
-  async getCalendarView(userId: string, month: string) {
-    // 解析月份参数，格式: YYYY-MM
-    const startDate = dayjs(`${month}-01`).startOf('month');
-    const endDate = startDate.endOf('month');
+  async getCalendarView(
+    userId: string,
+    { start, end }: { start: string; end: string },
+  ) {
+    let startDate = '';
+    let endDate = '';
+    if (start && end) {
+      startDate = start;
+      endDate = end;
+    }
 
     // 获取当月所有回答，按创建时间排序
     const answers = await this.prisma.answer.findMany({
       where: {
         user_id: userId,
-        created_at: {
-          gte: startDate.toDate(),
-          lte: endDate.toDate(),
+        created_ymd: {
+          gte: startDate,
+          lte: endDate,
         },
       },
       include: {
@@ -295,31 +317,25 @@ export class OnboardService {
     const dailyFirstAnswers = new Map<string, Answer>();
 
     answers.forEach(answer => {
-      const dateKey = dayjs(answer.created_at).format('YYYY-MM-DD');
+      const dateKey = answer.created_ymd as string;
       if (!dailyFirstAnswers.has(dateKey)) {
         dailyFirstAnswers.set(dateKey, answer);
       }
     });
 
-    // 生成当月所有日期，确保返回完整月份
     const result: Array<{ date: string; first: any }> = [];
-    const daysInMonth = endDate.date();
 
-    for (let day = 1; day <= daysInMonth; day++) {
-      const currentDate = startDate.date(day);
-      const dateKey = currentDate.format('YYYY-MM-DD');
-      const firstAnswer = dailyFirstAnswers.get(dateKey);
-
-      if (firstAnswer) {
-        result.push({
-          date: dateKey,
-          first: {
-            id: firstAnswer.id,
-            content: firstAnswer.content,
-          },
-        });
-      }
-    }
+    // 遍历 Map，组装结果数组
+    dailyFirstAnswers.forEach((answer, date) => {
+      result.push({
+        date,
+        first: {
+          id: answer.id,
+          content: answer.content,
+          created_ymd: answer.created_ymd,
+        },
+      });
+    });
 
     return result;
   }
@@ -354,7 +370,7 @@ export class OnboardService {
           select: {
             id: true,
             content: true,
-            created_at: true,
+            created_ymd: true,
           },
           orderBy: { created_at: 'desc' },
           take: 3,

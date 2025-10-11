@@ -1,5 +1,14 @@
 # Little Things API 接口文档
 
+## Changelog
+
+### 2025-10-11
+
+- 新增 `/api/answers` 接口文档
+- 更新 `calendar-view` 接口参数：从 `month` 改为 `start` 和 `end` 参数
+- 更新 `POST /api/answers` 接口：参数名从 `created_at` 改为 `created_tms`，时间格式为 `YYYY-MM-DD HH:mm:ss`，返回值结构优化，排除冗余字段
+- 更新 `GET /api/answers` 接口：返回值中每个答案新增 `created_tms` 字段
+
 ## 基础信息
 
 - **Base URL**: `http://localhost:3000/api`
@@ -144,7 +153,8 @@ Authorization: Bearer <your-jwt-token>
   ```json
   {
     "question_id": "cludquestion123456789",
-    "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。"
+    "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。",
+    "created_tms": "2024-01-15 08:30:45"
   }
   ```
 - **响应示例**:
@@ -154,11 +164,9 @@ Authorization: Bearer <your-jwt-token>
     "data": {
       "id": "cludanswer123456789",
       "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。",
-      "user_id": "clud1234567890abcdef",
-      "question_id": "cludquestion123456789",
       "question_snapshot": "今天让你感到最温暖的小事是什么？",
-      "created_at": "2024-01-15T08:30:45.123Z",
-      "updated_at": "2024-01-15T08:30:45.123Z",
+      "created_ymd": "2024-01-15",
+      "created_tms": "2024-01-15 08:30:45",
       "user": {
         "id": "clud1234567890abcdef",
         "email": "user@privaterelay.appleid.com"
@@ -174,6 +182,52 @@ Authorization: Bearer <your-jwt-token>
     }
   }
   ```
+
+#### 3.2 获取用户历史答案
+
+- **URL**: `GET /api/answers`
+- **描述**: 获取用户在指定问题下的所有回答，支持分页
+- **认证**: 需要
+- **查询参数**:
+  - `question_id`: 问题ID（必填）
+  - `limit`: 每页数量（可选）
+  - `cursor`: 游标位置，用于分页（可选）
+- **响应示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "summary": {
+        "daysOver": 15,
+        "totalAnswers": 8,
+        "firstAnswerAt": "2024-01-01",
+        "lastAnswerAt": "2024-01-15"
+      },
+      "answers": [
+        {
+          "id": "cludanswer123456789",
+          "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。",
+          "created_ymd": "2024-01-15",
+          "created_tms": "2024-01-15 08:30:45"
+        },
+        {
+          "id": "cludanswer098765432",
+          "content": "昨天朋友送了我一束花，让我感到很惊喜。",
+          "created_ymd": "2024-01-14",
+          "created_tms": "2024-01-14 10:20:30"
+        }
+      ],
+      "pagination": {
+        "limit": 10,
+        "hasMore": false,
+        "nextCursor": null
+      }
+    }
+  }
+  ```
+- 分页（滚动加载）
+  - 如果不传递limit和cursor，会返回所有回答
+  - 首次调用时传递limit，cursor不用传，此时会返回固定条数的answers，如果`hasMore`为true，则说明仍然有值，要继续获取，则需要传递cursor字段，值为上一个接口中的`pagination.nextCursor`值，直到`hasMore`变为false
 
 ### 4. 问题管理
 
@@ -235,10 +289,11 @@ Authorization: Bearer <your-jwt-token>
 #### 5.1 Calendar视图
 
 - **URL**: `GET /api/calendar-view`
-- **描述**: 获取指定月份的日历视图数据，显示每天的第一个回答
+- **描述**: 获取指定日期范围的日历视图数据，显示每天的第一个回答
 - **认证**: 需要
 - **查询参数**:
-  - `month`: 月份，格式为 YYYY-MM（可选，默认为当前月份）
+  - `start`: 开始日期，格式为 YYYY-MM-DD（必填）
+  - `end`: 结束日期，格式为 YYYY-MM-DD（必填）
 - **响应示例**:
   ```json
   {

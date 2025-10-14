@@ -2,6 +2,11 @@
 
 ## Changelog
 
+### 2025-10-14
+
+- 更新 `calendar-view` 接口：将 `first` 字段改为 `reflections` 字段，现在返回每天的所有回答而不是仅第一个回答
+- 更新 `reflections` 字段结构：每个回答包含 `id`、`content` 和 `created_ymd` 字段
+
 ### 2025-10-11
 
 - 新增 `/api/answers` 接口文档
@@ -289,7 +294,7 @@ Authorization: Bearer <your-jwt-token>
 #### 5.1 Calendar视图
 
 - **URL**: `GET /api/calendar-view`
-- **描述**: 获取指定日期范围的日历视图数据，显示每天的第一个回答
+- **描述**: 获取指定日期范围的日历视图数据，显示每天的所有回答
 - **认证**: 需要
 - **查询参数**:
   - `start`: 开始日期，格式为 YYYY-MM-DD（必填）
@@ -301,17 +306,28 @@ Authorization: Bearer <your-jwt-token>
     "data": [
       {
         "date": "2024-01-15",
-        "first": {
-          "id": "cludanswer123456789",
-          "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。"
-        }
+        "reflections": [
+          {
+            "id": "cludanswer123456789",
+            "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。",
+            "created_ymd": "2024-01-15"
+          },
+          {
+            "id": "cludanswer987654321",
+            "content": "下午在公园散步时看到了一朵美丽的花。",
+            "created_ymd": "2024-01-15"
+          }
+        ]
       },
       {
         "date": "2024-01-16",
-        "first": {
-          "id": "cludanswer098765432",
-          "content": "今天在咖啡店遇到了一位友善的陌生人，我们聊了很久。"
-        }
+        "reflections": [
+          {
+            "id": "cludanswer098765432",
+            "content": "今天在咖啡店遇到了一位友善的陌生人，我们聊了很久。",
+            "created_ymd": "2024-01-16"
+          }
+        ]
       }
     ]
   }

@@ -313,27 +313,28 @@ export class OnboardService {
       },
     });
 
-    // 按日期分组，取每天第一个回答
-    const dailyFirstAnswers = new Map<string, Answer>();
+    // 按日期分组所有回答
+    const dailyAnswers = new Map<string, Answer[]>();
 
     answers.forEach(answer => {
-      const dateKey = answer.created_ymd as string;
-      if (!dailyFirstAnswers.has(dateKey)) {
-        dailyFirstAnswers.set(dateKey, answer);
+      const dateKey = answer.created_ymd;
+      if (!dailyAnswers.has(dateKey)) {
+        dailyAnswers.set(dateKey, []);
       }
+      dailyAnswers.get(dateKey)!.push(answer);
     });
 
-    const result: Array<{ date: string; first: any }> = [];
+    const result: Array<{ date: string; reflections: any[] }> = [];
 
     // 遍历 Map，组装结果数组
-    dailyFirstAnswers.forEach((answer, date) => {
+    dailyAnswers.forEach((dayAnswers, date) => {
       result.push({
         date,
-        first: {
+        reflections: dayAnswers.map(answer => ({
           id: answer.id,
           content: answer.content,
           created_ymd: answer.created_ymd,
-        },
+        })),
       });
     });
 

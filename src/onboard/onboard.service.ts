@@ -392,6 +392,11 @@ export class OnboardService {
       select: {
         id: true,
         title: true,
+        category: {
+          select: {
+            name: true,
+          },
+        },
       },
     });
 

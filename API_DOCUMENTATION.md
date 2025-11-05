@@ -2,9 +2,12 @@
 
 ## Changelog
 
+### 2025-11-05
+
+- 新增 questions-of-the-day 接口：获取随机三个问题
+
 ### 2025-10-14
 
-- 新增 `questions-of-the-day` 接口：获取随机三个问题
 - 更新 `calendar-view` 接口：将 `first` 字段改为 `reflections` 字段，现在返回每天的所有回答而不是仅第一个回答
 - 更新 `reflections` 字段结构：每个回答包含 `id`、`content` 和 `created_ymd` 字段
 
@@ -302,15 +305,24 @@ Authorization: Bearer <your-jwt-token>
     "data": [
       {
         "id": "cludquestion123456789",
-        "title": "今天让你感到最温暖的小事是什么？"
+        "title": "今天让你感到最温暖的小事是什么？",
+        "category": {
+          "name": "生活感悟"
+        }
       },
       {
         "id": "cludquestion098765432",
-        "title": "今天有什么让你感到感激的事情？"
+        "title": "今天有什么让你感到感激的事情？",
+        "category": {
+          "name": "人际关系"
+        }
       },
       {
         "id": "cludquestionabcdef123",
-        "title": "今天哪个瞬间让你想停下来好好感受？"
+        "title": "今天哪个瞬间让你想停下来好好感受？",
+        "category": {
+          "name": "工作思考"
+        }
       }
     ]
   }
@@ -318,6 +330,7 @@ Authorization: Bearer <your-jwt-token>
 - **说明**:
   - 每次调用都会随机返回3个问题
   - 如果问题总数少于3个，则返回所有问题
+  - 每个问题包含分类信息
 
 ### 5. 视图模式
 

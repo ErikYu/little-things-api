@@ -136,4 +136,11 @@ export class OnboardController {
     const userId = req.user.userId;
     return this.onboardService.getThreadView(userId);
   }
+
+  @ApiOperation({ summary: '获取随机三个问题' })
+  @Get('questions-of-the-day')
+  @UseGuards(AuthGuard('jwt'))
+  getQuestionsOfTheDay() {
+    return this.onboardService.getQuestionsOfTheDay();
+  }
 }

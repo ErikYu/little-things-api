@@ -4,6 +4,7 @@
 
 ### 2025-10-14
 
+- 新增 `questions-of-the-day` 接口：获取随机三个问题
 - 更新 `calendar-view` 接口：将 `first` 字段改为 `reflections` 字段，现在返回每天的所有回答而不是仅第一个回答
 - 更新 `reflections` 字段结构：每个回答包含 `id`、`content` 和 `created_ymd` 字段
 
@@ -288,6 +289,35 @@ Authorization: Bearer <your-jwt-token>
     }
   }
   ```
+
+#### 4.3 获取今日问题
+
+- **URL**: `GET /api/questions-of-the-day`
+- **描述**: 获取随机三个问题
+- **认证**: 需要
+- **响应示例**:
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": "cludquestion123456789",
+        "title": "今天让你感到最温暖的小事是什么？"
+      },
+      {
+        "id": "cludquestion098765432",
+        "title": "今天有什么让你感到感激的事情？"
+      },
+      {
+        "id": "cludquestionabcdef123",
+        "title": "今天哪个瞬间让你想停下来好好感受？"
+      }
+    ]
+  }
+  ```
+- **说明**:
+  - 每次调用都会随机返回3个问题
+  - 如果问题总数少于3个，则返回所有问题
 
 ### 5. 视图模式
 

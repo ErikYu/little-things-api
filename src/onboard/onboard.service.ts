@@ -386,4 +386,17 @@ export class OnboardService {
 
     return result;
   }
+
+  async getQuestionsOfTheDay() {
+    const allQuestions = await this.prisma.question.findMany({
+      select: {
+        id: true,
+        title: true,
+      },
+    });
+
+    // 随机打乱并取前3个
+    const shuffled = allQuestions.sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 3);
+  }
 }

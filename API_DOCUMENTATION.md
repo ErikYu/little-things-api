@@ -2,6 +2,12 @@
 
 ## Changelog
 
+### 2025-11-30
+
+- 新增图标生成功能：创建答案时自动生成图标
+- 新增 `/api/icon/progress/:iconId` 接口：通过 SSE 获取图标生成进度
+- 更新 `POST /api/answers` 接口：响应中新增 `icon` 字段，包含图标 ID 和状态
+
 ### 2025-11-05
 
 - 新增 questions-of-the-day 接口：获取随机三个问题
@@ -187,10 +193,18 @@ Authorization: Bearer <your-jwt-token>
           "id": "clud1234567890abcdef",
           "name": "生活感悟"
         }
+      },
+      "icon": {
+        "id": "cludicon123456789",
+        "status": "PENDING"
       }
     }
   }
   ```
+- **说明**:
+  - 创建答案时会自动创建图标生成任务
+  - `icon.status` 可能的值：`PENDING`（生成中）、`GENERATED`（已生成）、`FAILED`（生成失败）
+  - 图标生成是异步进行的，可通过 `/api/icon/progress/:iconId` 接口获取生成进度
 
 #### 3.2 获取用户历史答案
 
@@ -404,6 +418,44 @@ Authorization: Bearer <your-jwt-token>
       }
     ]
   }
+  ```
+
+### 6. 图标生成
+
+#### 6.1 获取图标生成进度
+
+- **URL**: `GET /api/icon/progress/:iconId`
+- **描述**: 通过 Server-Sent Events (SSE) 获取图标生成进度
+- **认证**: 不需要
+- **路径参数**:
+  - `iconId`: 图标ID（从创建答案接口的响应中获取）
+- **响应格式**: SSE 事件流
+- **事件数据格式**:
+  ```json
+  {
+    "data": {
+      "status": "PENDING",
+      "url": ""
+    }
+  }
+  ```
+- **状态说明**:
+  - `PENDING`: 图标正在生成中
+  - `GENERATED`: 图标已生成成功，`url` 字段包含图标的访问地址（带签名，有效期1小时）
+  - `FAILED`: 图标生成失败
+- **使用说明**:
+  - 连接后立即返回当前状态
+  - 如果状态为 `PENDING`，每5秒轮询一次状态
+  - 当状态变为 `GENERATED` 或 `FAILED` 时，发送最后一次更新后关闭连接
+  - 客户端应使用 EventSource 或类似的 SSE 客户端库来接收事件
+- **响应示例**:
+
+  ```
+  data: {"status":"PENDING","url":""}
+
+  data: {"status":"PENDING","url":""}
+
+  data: {"status":"GENERATED","url":"https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx"}
   ```
 
 ## 错误响应

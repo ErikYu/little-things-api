@@ -76,8 +76,28 @@ model Answer {
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
 
-  user     User     @relation(fields: [user_id], references: [id])
-  question Question @relation(fields: [question_id], references: [id])
+  user     User        @relation(fields: [user_id], references: [id])
+  question Question    @relation(fields: [question_id], references: [id])
+  icon     AnswerIcon?
 
   @@map("answers")
+}
+
+enum AnswerIconStatus {
+  PENDING
+  GENERATED
+  FAILED
+}
+
+model AnswerIcon {
+  id         String           @id @default(cuid())
+  answer_id  String           @unique
+  url        String
+  status     AnswerIconStatus
+  created_at DateTime         @default(now())
+  updated_at DateTime         @updatedAt
+
+  answer Answer @relation(fields: [answer_id], references: [id])
+
+  @@map("answer_icons")
 }

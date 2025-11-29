@@ -1,11 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import dayjs from 'dayjs';
 import { Answer } from '@prisma/client';
+import { IconService } from './icon.service';
 
 @Injectable()
 export class OnboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  logger = new Logger(OnboardService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private iconService: IconService,
+  ) {}
   getOnboardData() {
     return {
       page1st: 'the little things',
@@ -248,6 +254,12 @@ export class OnboardService {
         question_snapshot: question.title,
         created_ymd: createdYmd,
         created_tms: created_tms,
+        icon: {
+          create: {
+            status: 'PENDING',
+            url: '',
+          },
+        },
       },
       include: {
         user: {
@@ -268,8 +280,21 @@ export class OnboardService {
             },
           },
         },
+        icon: {
+          select: { id: true, status: true },
+        },
       },
     });
+
+    if (answer && answer.icon && answer.icon.id) {
+      // 创建回答之后，调用llm创建一个icon
+      this.iconService
+        .generateIcon(answer.icon.id, answer.content)
+        .then(() => {})
+        .catch(err => {
+          this.logger.error(err);
+        });
+    }
 
     return answer;
   }

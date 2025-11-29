@@ -167,6 +167,22 @@ export class IconService {
    * 在获取到 GENERATED 或 FAILED 之前，每5秒发送一次 PENDING
    * 获取到结果之后再也不发送
    */
+  /**
+   * 生成签名后的 OSS URL
+   * @param ossPath OSS 文件路径
+   * @param expires 过期时间（秒），默认 3600
+   * @returns 签名后的 URL，如果 ossPath 为空则返回 null
+   */
+  getSignedUrl(
+    ossPath: string | null | undefined,
+    expires: number = 3600,
+  ): string | null {
+    if (!ossPath) {
+      return null;
+    }
+    return this.ossClient.signatureUrl(ossPath, { expires });
+  }
+
   getProgressStream(iconId: string): Observable<any> {
     // 获取当前状态的辅助函数
     const getCurrentStatus = async (): Promise<{

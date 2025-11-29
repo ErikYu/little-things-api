@@ -7,6 +7,9 @@
 - 新增图标生成功能：创建答案时自动生成图标
 - 新增 `/api/icon/progress/:iconId` 接口：通过 SSE 获取图标生成进度
 - 更新 `POST /api/answers` 接口：响应中新增 `icon` 字段，包含图标 ID 和状态
+- 更新 `GET /api/answers` 接口：响应中每个答案新增 `icon` 字段，包含图标 URL（已签名）和状态
+- 更新 `GET /api/calendar-view` 接口：响应中每个 reflection 新增 `icon` 字段
+- 更新 `GET /api/thread-view` 接口：响应中每个答案新增 `icon` 字段
 
 ### 2025-11-05
 
@@ -231,13 +234,21 @@ Authorization: Bearer <your-jwt-token>
           "id": "cludanswer123456789",
           "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。",
           "created_ymd": "2024-01-15",
-          "created_tms": "2024-01-15 08:30:45"
+          "created_tms": "2024-01-15 08:30:45",
+          "icon": {
+            "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx",
+            "status": "GENERATED"
+          }
         },
         {
           "id": "cludanswer098765432",
           "content": "昨天朋友送了我一束花，让我感到很惊喜。",
           "created_ymd": "2024-01-14",
-          "created_tms": "2024-01-14 10:20:30"
+          "created_tms": "2024-01-14 10:20:30",
+          "icon": {
+            "url": "",
+            "status": "PENDING"
+          }
         }
       ],
       "pagination": {
@@ -248,9 +259,15 @@ Authorization: Bearer <your-jwt-token>
     }
   }
   ```
-- 分页（滚动加载）
-  - 如果不传递limit和cursor，会返回所有回答
-  - 首次调用时传递limit，cursor不用传，此时会返回固定条数的answers，如果`hasMore`为true，则说明仍然有值，要继续获取，则需要传递cursor字段，值为上一个接口中的`pagination.nextCursor`值，直到`hasMore`变为false
+- **说明**:
+  - 分页（滚动加载）
+    - 如果不传递limit和cursor，会返回所有回答
+    - 首次调用时传递limit，cursor不用传，此时会返回固定条数的answers，如果`hasMore`为true，则说明仍然有值，要继续获取，则需要传递cursor字段，值为上一个接口中的`pagination.nextCursor`值，直到`hasMore`变为false
+  - `icon` 字段说明：
+    - `status` 可能的值：`PENDING`（生成中）、`GENERATED`（已生成）、`FAILED`（生成失败）
+    - 当 `status` 为 `GENERATED` 时，`url` 字段包含签名后的图标访问地址（有效期1小时）
+    - 当 `status` 为 `PENDING` 或 `FAILED` 时，`url` 为空字符串
+    - 如果答案没有关联的图标，`icon` 为 `null`
 
 ### 4. 问题管理
 
@@ -356,6 +373,8 @@ Authorization: Bearer <your-jwt-token>
 - **查询参数**:
   - `start`: 开始日期，格式为 YYYY-MM-DD（必填）
   - `end`: 结束日期，格式为 YYYY-MM-DD（必填）
+- **说明**:
+  - 每个 reflection 包含 `icon` 字段，字段说明同 `GET /api/answers` 接口
 - **响应示例**:
   ```json
   {
@@ -367,12 +386,20 @@ Authorization: Bearer <your-jwt-token>
           {
             "id": "cludanswer123456789",
             "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。",
-            "created_ymd": "2024-01-15"
+            "created_ymd": "2024-01-15",
+            "icon": {
+              "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx",
+              "status": "GENERATED"
+            }
           },
           {
             "id": "cludanswer987654321",
             "content": "下午在公园散步时看到了一朵美丽的花。",
-            "created_ymd": "2024-01-15"
+            "created_ymd": "2024-01-15",
+            "icon": {
+              "url": "",
+              "status": "PENDING"
+            }
           }
         ]
       },
@@ -382,7 +409,8 @@ Authorization: Bearer <your-jwt-token>
           {
             "id": "cludanswer098765432",
             "content": "今天在咖啡店遇到了一位友善的陌生人，我们聊了很久。",
-            "created_ymd": "2024-01-16"
+            "created_ymd": "2024-01-16",
+            "icon": null
           }
         ]
       }
@@ -395,6 +423,8 @@ Authorization: Bearer <your-jwt-token>
 - **URL**: `GET /api/thread-view`
 - **描述**: 获取用户已pin问题的线程视图，显示每个问题的最新3个答案
 - **认证**: 需要
+- **说明**:
+  - 每个答案包含 `icon` 字段，字段说明同 `GET /api/answers` 接口
 - **响应示例**:
   ```json
   {
@@ -407,12 +437,20 @@ Authorization: Bearer <your-jwt-token>
           {
             "id": "cludanswer123456789",
             "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。",
-            "created_at": "2024-01-15T08:30:45.123Z"
+            "created_ymd": "2024-01-15",
+            "icon": {
+              "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx",
+              "status": "GENERATED"
+            }
           },
           {
             "id": "cludanswer098765432",
             "content": "昨天朋友送了我一束花，让我感到很惊喜。",
-            "created_at": "2024-01-14T10:20:30.456Z"
+            "created_ymd": "2024-01-14",
+            "icon": {
+              "url": "",
+              "status": "PENDING"
+            }
           }
         ]
       }

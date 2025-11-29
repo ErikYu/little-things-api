@@ -1,7 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import dayjs from 'dayjs';
-import { Answer } from '@prisma/client';
 import { IconService } from './icon.service';
 
 @Injectable()
@@ -153,6 +152,12 @@ export class OnboardService {
         content: true,
         created_ymd: true,
         created_tms: true,
+        icon: {
+          select: {
+            url: true,
+            status: true,
+          },
+        },
       },
       orderBy: {
         sequence: 'desc',
@@ -211,6 +216,15 @@ export class OnboardService {
         content: answer.content,
         created_ymd: answer.created_ymd,
         created_tms: answer.created_tms,
+        icon: answer.icon
+          ? {
+              ...answer.icon,
+              url:
+                answer.icon.status === 'GENERATED' && answer.icon.url
+                  ? this.iconService.getSignedUrl(answer.icon.url)
+                  : answer.icon.url,
+            }
+          : null,
       })),
       pagination: {
         limit: limit || null,
@@ -332,6 +346,12 @@ export class OnboardService {
             },
           },
         },
+        icon: {
+          select: {
+            url: true,
+            status: true,
+          },
+        },
       },
       orderBy: {
         created_at: 'asc',
@@ -339,7 +359,7 @@ export class OnboardService {
     });
 
     // 按日期分组所有回答
-    const dailyAnswers = new Map<string, Answer[]>();
+    const dailyAnswers = new Map<string, typeof answers>();
 
     answers.forEach(answer => {
       const dateKey = answer.created_ymd;
@@ -359,6 +379,15 @@ export class OnboardService {
           id: answer.id,
           content: answer.content,
           created_ymd: answer.created_ymd,
+          icon: answer.icon
+            ? {
+                ...answer.icon,
+                url:
+                  answer.icon.status === 'GENERATED' && answer.icon.url
+                    ? this.iconService.getSignedUrl(answer.icon.url)
+                    : answer.icon.url,
+              }
+            : null,
         })),
       });
     });
@@ -397,6 +426,12 @@ export class OnboardService {
             id: true,
             content: true,
             created_ymd: true,
+            icon: {
+              select: {
+                url: true,
+                status: true,
+              },
+            },
           },
           orderBy: { created_at: 'desc' },
           take: 3,
@@ -404,7 +439,18 @@ export class OnboardService {
 
         return {
           ...pinnedQuestion.question,
-          answers,
+          answers: answers.map(answer => ({
+            ...answer,
+            icon: answer.icon
+              ? {
+                  ...answer.icon,
+                  url:
+                    answer.icon.status === 'GENERATED' && answer.icon.url
+                      ? this.iconService.getSignedUrl(answer.icon.url)
+                      : answer.icon.url,
+                }
+              : null,
+          })),
         };
       }),
     );

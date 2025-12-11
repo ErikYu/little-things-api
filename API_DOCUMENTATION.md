@@ -2,6 +2,10 @@
 
 ## Changelog
 
+### 2025-12-11
+
+- 更新 `GET /api/calendar-view` 接口：响应中每个 reflection 新增 `question` 字段，包含问题 ID、标题和分类信息
+
 ### 2025-11-30
 
 - 新增图标生成功能：创建答案时自动生成图标
@@ -374,7 +378,9 @@ Authorization: Bearer <your-jwt-token>
   - `start`: 开始日期，格式为 YYYY-MM-DD（必填）
   - `end`: 结束日期，格式为 YYYY-MM-DD（必填）
 - **说明**:
-  - 每个 reflection 包含 `icon` 字段，字段说明同 `GET /api/answers` 接口
+  - 每个 reflection 包含 `id`、`content`、`created_ymd`、`question` 和 `icon` 字段
+  - `question` 字段包含问题的 `id`、`title` 和 `category` 信息（`category` 包含 `id` 和 `name`）
+  - `icon` 字段说明同 `GET /api/answers` 接口
 - **响应示例**:
   ```json
   {
@@ -387,6 +393,14 @@ Authorization: Bearer <your-jwt-token>
             "id": "cludanswer123456789",
             "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。",
             "created_ymd": "2024-01-15",
+            "question": {
+              "id": "cludquestion123456789",
+              "title": "今天让你感到最温暖的小事是什么？",
+              "category": {
+                "id": "clud1234567890abcdef",
+                "name": "生活感悟"
+              }
+            },
             "icon": {
               "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx",
               "status": "GENERATED"
@@ -396,6 +410,14 @@ Authorization: Bearer <your-jwt-token>
             "id": "cludanswer987654321",
             "content": "下午在公园散步时看到了一朵美丽的花。",
             "created_ymd": "2024-01-15",
+            "question": {
+              "id": "cludquestion098765432",
+              "title": "今天有什么让你感到感激的事情？",
+              "category": {
+                "id": "clud0987654321fedcba",
+                "name": "人际关系"
+              }
+            },
             "icon": {
               "url": "",
               "status": "PENDING"
@@ -410,6 +432,14 @@ Authorization: Bearer <your-jwt-token>
             "id": "cludanswer098765432",
             "content": "今天在咖啡店遇到了一位友善的陌生人，我们聊了很久。",
             "created_ymd": "2024-01-16",
+            "question": {
+              "id": "cludquestionabcdef123",
+              "title": "今天哪个瞬间让你想停下来好好感受？",
+              "category": {
+                "id": "cludabcdef123456789",
+                "name": "工作思考"
+              }
+            },
             "icon": null
           }
         ]

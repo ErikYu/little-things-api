@@ -377,7 +377,7 @@ export class OnboardService {
         date,
         reflections: dayAnswers.map(answer => ({
           id: answer.id,
-          question: answer.question.title,
+          question: answer.question,
           content: answer.content,
           created_ymd: answer.created_ymd,
           icon: answer.icon

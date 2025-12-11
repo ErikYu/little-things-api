@@ -4,8 +4,7 @@ import { TransformInterceptor } from './interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
 import { Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-
-const logger = new Logger(AppModule.name);
+import { Logger as PinoLogger } from 'nestjs-pino';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,6 +12,9 @@ async function bootstrap() {
   // Apply transform interceptor and exception filter globally
   app.useGlobalInterceptors(new TransformInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
+
+  // 使用 Pino logger 替换默认 logger
+  app.useLogger(app.get(PinoLogger));
 
   // api
   const config = new DocumentBuilder()
@@ -24,7 +26,7 @@ async function bootstrap() {
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);
   await app.listen(process.env.PORT ?? 3000);
-  logger.log(`🚀🚀🚀 Server is running on port ${process.env.PORT ?? 3000}`);
+  Logger.log(`🚀🚀🚀 Server is running on port ${process.env.PORT ?? 3000}`);
 }
 
 bootstrap();

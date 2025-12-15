@@ -17,8 +17,9 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { APIConnectionTimeoutError } from 'openai';
 import type { ImagesResponse } from 'openai/resources/images';
+import { PromptCategory } from '@prisma/client';
 
-const prompt = `The Single-Layer System Prompt
+const DEFAULT_PROMPT = `The Single-Layer System Prompt
 Task: Create a cute, minimalist single vector icon based on the following user text: "[INSERT_USER_REFLECTION_HERE]"
 
 CORE INSTRUCTION (INTERNAL LOGIC): Read the user text and identify the single most concrete, positive object mentioned. Ignore any context, emotions, or background scenery. Draw ONLY that one object.
@@ -71,11 +72,40 @@ export class IconService {
     });
   }
 
+  private async getPrompt(): Promise<string> {
+    try {
+      const dbPrompt = await this.prisma.prompt.findFirst({
+        where: {
+          category: PromptCategory.ICON_GENERATION,
+          active: true,
+        },
+        orderBy: {
+          updated_at: 'desc',
+        },
+      });
+
+      if (dbPrompt) {
+        this.logger.log(`Using prompt from DB: ${dbPrompt.id}`);
+        return dbPrompt.content;
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to fetch prompt from DB, using default. Error: ${error}`,
+      );
+    }
+
+    return DEFAULT_PROMPT;
+  }
+
   async generateIcon(iconId: string, reflection: string) {
     const llm = new OpenAI({
       baseURL: 'https://api.tu-zi.com/v1',
     });
-    const _prompt = prompt.replace('[INSERT_USER_REFLECTION_HERE]', reflection);
+    const promptTemplate = await this.getPrompt();
+    const _prompt = promptTemplate.replace(
+      '[INSERT_USER_REFLECTION_HERE]',
+      reflection,
+    );
     this.logger.log(`Icon[${iconId}]: Starting to generate icon`);
 
     let response: ImagesResponse | undefined;

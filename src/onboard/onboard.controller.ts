@@ -143,4 +143,18 @@ export class OnboardController {
   getQuestionsOfTheDay() {
     return this.onboardService.getQuestionsOfTheDay();
   }
+
+  @ApiOperation({ summary: '保存设备Token' })
+  @Post('device-token')
+  @UseGuards(AuthGuard('jwt'))
+  saveDeviceToken(
+    @Request() req: AuthenticatedRequest,
+    @Body() body: { deviceToken: string },
+  ) {
+    const userId = req.user.userId;
+    if (!body.deviceToken) {
+      throw new BadRequestException('Device Token is required');
+    }
+    return this.onboardService.saveDeviceToken(userId, body.deviceToken);
+  }
 }

@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { setToken } from '../utils/api';
+import {
+  Container,
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Paper,
+  Alert,
+} from '@mui/material';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -15,75 +25,184 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response: { access_token: string; admin: { id: string; username: string } } = await api.post('/admin-auth/login', {
+      const response: {
+        access_token: string;
+        admin: { id: string; username: string };
+      } = await api.post('/admin-auth/login', {
         username,
         password,
       });
       setToken(response.access_token);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.msg || err.response?.data?.message || '登录失败，请检查用户名和密码');
+      setError(
+        err.response?.data?.msg ||
+          err.response?.data?.message ||
+          'Login failed, please check your username and password',
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
-        <div>
-          <h2 className="text-center text-3xl font-bold text-gray-900">
-            管理员登录
-          </h2>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          )}
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                用户名
-              </label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                密码
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-          <div>
-            <button
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: '-10%',
+          left: '-10%',
+          width: '40%',
+          height: '40%',
+          background:
+            'radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(0,0,0,0) 70%)',
+          borderRadius: '50%',
+        },
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          bottom: '-10%',
+          right: '-10%',
+          width: '40%',
+          height: '40%',
+          background:
+            'radial-gradient(circle, rgba(236, 72, 153, 0.15) 0%, rgba(0,0,0,0) 70%)',
+          borderRadius: '50%',
+        },
+      }}
+    >
+      <Container component="main" maxWidth="xs" sx={{ position: 'relative' }}>
+        <Paper
+          elevation={24}
+          sx={{
+            padding: 4,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            width: '100%',
+            borderRadius: 4,
+            background: 'transparent',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          }}
+        >
+          <Box
+            sx={{
+              width: 60,
+              height: 60,
+              borderRadius: '50%',
+              bgcolor: 'primary.main',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              mb: 2,
+              boxShadow: '0 0 20px rgba(99, 102, 241, 0.5)',
+            }}
+          >
+            <SmartToyIcon sx={{ fontSize: 32, color: 'white' }} />
+          </Box>
+          <Typography
+            component="h1"
+            variant="h5"
+            sx={{
+              fontWeight: 700,
+              background: 'linear-gradient(45deg, #6366f1, #ec4899)',
+              backgroundClip: 'text',
+              textFillColor: 'transparent',
+              mb: 3,
+            }}
+          >
+            Little Things
+          </Typography>
+          <Box
+            component="form"
+            onSubmit={handleSubmit}
+            noValidate
+            sx={{ mt: 1, width: '100%' }}
+          >
+            {error && (
+              <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                {error}
+              </Alert>
+            )}
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="username"
+              label="Username"
+              name="username"
+              autoComplete="off"
+              autoFocus
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  autoComplete: 'new-password',
+                  formNoValidate: true,
+                },
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                },
+              }}
+            />
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              name="password"
+              label="Password"
+              type="password"
+              id="password"
+              autoComplete="off"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  autoComplete: 'new-password',
+                  formNoValidate: true,
+                },
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                },
+              }}
+            />
+            <Button
               type="submit"
+              fullWidth
+              variant="contained"
               disabled={loading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+              sx={{
+                mt: 4,
+                mb: 2,
+                py: 1.5,
+                borderRadius: 2,
+                fontSize: '1rem',
+                fontWeight: 600,
+                textTransform: 'none',
+                background: 'linear-gradient(45deg, #6366f1, #8b5cf6)',
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #4f46e5, #7c3aed)',
+                },
+              }}
             >
-              {loading ? '登录中...' : '登录'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+              {loading ? 'Logging in...' : 'Sign In'}
+            </Button>
+          </Box>
+        </Paper>
+      </Container>
+    </Box>
   );
 }
-

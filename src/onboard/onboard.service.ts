@@ -476,4 +476,11 @@ export class OnboardService {
     const shuffled = allQuestions.sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 3);
   }
+
+  async saveDeviceToken(userId: string, deviceToken: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { device_token: deviceToken },
+    });
+  }
 }

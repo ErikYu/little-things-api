@@ -10,6 +10,6 @@ import { IconController } from './icon.controller';
   imports: [PrismaModule, ConfigModule],
   controllers: [OnboardController, IconController],
   providers: [OnboardService, IconService],
-  exports: [OnboardService],
+  exports: [OnboardService, IconService],
 })
 export class OnboardModule {}

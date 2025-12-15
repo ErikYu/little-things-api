@@ -1,13 +1,28 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, PromptCategory } from '@prisma/client';
 import type { CreatePromptDto, UpdatePromptDto, QueryPromptDto } from './dto';
+
+const PLACEHOLDER = '[INSERT_USER_REFLECTION_HERE]';
 
 @Injectable()
 export class AdminPromptService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createDto: CreatePromptDto) {
+    if (
+      createDto.category === PromptCategory.ICON_GENERATION &&
+      !createDto.content.includes(PLACEHOLDER)
+    ) {
+      throw new BadRequestException(
+        `Content must contain placeholder: ${PLACEHOLDER}`,
+      );
+    }
+
     return await this.prisma.prompt.create({
       data: {
         category: createDto.category,
@@ -28,6 +43,16 @@ export class AdminPromptService {
 
     if (!prompt) {
       throw new NotFoundException('Prompt not found');
+    }
+
+    if (
+      prompt.category === PromptCategory.ICON_GENERATION &&
+      updateDto.content &&
+      !updateDto.content.includes(PLACEHOLDER)
+    ) {
+      throw new BadRequestException(
+        `Content must contain placeholder: ${PLACEHOLDER}`,
+      );
     }
 
     return await this.prisma.prompt.update({
@@ -61,15 +86,10 @@ export class AdminPromptService {
   }
 
   async findList(queryDto: QueryPromptDto) {
-    const {
-      category,
-      content,
-      active,
-      page = 1,
-      pageSize = 10,
-    } = queryDto;
+    const { category, content, active, page = 1, pageSize = 10 } = queryDto;
     const pageNum = typeof page === 'string' ? parseInt(page, 10) : page;
-    const pageSizeNum = typeof pageSize === 'string' ? parseInt(pageSize, 10) : pageSize;
+    const pageSizeNum =
+      typeof pageSize === 'string' ? parseInt(pageSize, 10) : pageSize;
 
     // 构建查询条件
     const where: Prisma.PromptWhereInput = {
@@ -128,4 +148,3 @@ export class AdminPromptService {
     return prompt;
   }
 }
-

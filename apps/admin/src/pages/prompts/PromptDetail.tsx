@@ -1,6 +1,24 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
+import {
+  Box,
+  Button,
+  TextField,
+  FormControlLabel,
+  Checkbox,
+  Typography,
+  Paper,
+  Alert,
+  Stack,
+  Breadcrumbs,
+  Link,
+  IconButton,
+  Snackbar,
+} from '@mui/material';
+import SaveIcon from '@mui/icons-material/Save';
+import EditIcon from '@mui/icons-material/Edit';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 interface Prompt {
   id: string;
@@ -16,11 +34,28 @@ export default function PromptDetail() {
   const navigate = useNavigate();
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState('');
   const [active, setActive] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
+
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
+
+  const showSnackbar = (message: string, severity: 'success' | 'error') => {
+    setSnackbar({ open: true, message, severity });
+  };
 
   const isNew = id === 'new';
 
@@ -35,17 +70,17 @@ export default function PromptDetail() {
 
     const fetchPrompt = async () => {
       setLoading(true);
-      setError('');
       try {
         const data: Prompt = await api.get(`/admin-prompt/${id}`);
         setPrompt(data);
         setContent(data.content);
         setActive(data.active);
       } catch (err: any) {
-        setError(
+        showSnackbar(
           err.response?.data?.msg ||
             err.response?.data?.message ||
-            '获取详情失败',
+            'Failed to fetch prompt details',
+          'error',
         );
       } finally {
         setLoading(false);
@@ -57,7 +92,6 @@ export default function PromptDetail() {
 
   const handleSave = async () => {
     setSaving(true);
-    setError('');
     try {
       if (isNew) {
         await api.post('/admin-prompt', {
@@ -71,10 +105,19 @@ export default function PromptDetail() {
           active,
         });
       }
-      navigate('/prompts');
+      showSnackbar('Prompt saved successfully', 'success');
+      // 给一点时间显示 success 消息，或者直接跳转
+      // 这里的 UX 可能会有点问题，如果立即跳转，snackbar 会消失。
+      // 但现在我们只关注 "报错"。
+      setTimeout(() => {
+        navigate('/prompts');
+      }, 500);
     } catch (err: any) {
-      setError(
-        err.response?.data?.msg || err.response?.data?.message || '保存失败',
+      showSnackbar(
+        err.response?.data?.msg ||
+          err.response?.data?.message ||
+          'Failed to save',
+        'error',
       );
     } finally {
       setSaving(false);
@@ -82,110 +125,135 @@ export default function PromptDetail() {
   };
 
   if (loading) {
-    return <div className="text-center py-8">加载中...</div>;
+    return <Box sx={{ p: 3, textAlign: 'center' }}>Loading...</Box>;
   }
 
   return (
-    <div>
-      <div className="mb-6 flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">
-          {isNew ? '新建Prompt' : 'Prompt详情'}
-        </h2>
-        <Link
-          to="/prompts"
-          className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-        >
-          返回列表
-        </Link>
-      </div>
+    <Box>
+      <Box sx={{ mb: 3 }}>
+        <Breadcrumbs aria-label="breadcrumb">
+          <Link
+            underline="hover"
+            color="inherit"
+            href="#"
+            onClick={e => {
+              e.preventDefault();
+              navigate('/prompts');
+            }}
+          >
+            Prompts
+          </Link>
+          <Typography color="text.primary">
+            {isNew ? 'New Prompt' : 'Prompt Details'}
+          </Typography>
+        </Breadcrumbs>
+      </Box>
 
-      {error && (
-        <div className="mb-4 rounded-md bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
+      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <IconButton onClick={() => navigate('/prompts')} aria-label="back">
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography variant="h5" component="h2">
+          {isNew ? 'New Prompt' : 'Prompt Details'}
+        </Typography>
+      </Box>
 
-      <div className="bg-white shadow rounded-lg p-6">
+      <Paper sx={{ p: 3 }}>
         {!isNew && prompt && (
-          <div className="mb-6 space-y-2 text-sm text-gray-600">
-            <div>
-              <span className="font-medium">ID:</span> {prompt.id}
-            </div>
-            <div>
-              <span className="font-medium">分类:</span> {prompt.category}
-            </div>
-            <div>
-              <span className="font-medium">创建时间:</span>{' '}
-              {new Date(prompt.created_at).toLocaleString('zh-CN')}
-            </div>
-            <div>
-              <span className="font-medium">更新时间:</span>{' '}
-              {new Date(prompt.updated_at).toLocaleString('zh-CN')}
-            </div>
-          </div>
+          <Box sx={{ mb: 3, color: 'text.secondary', fontSize: '0.875rem' }}>
+            <Stack direction="row" spacing={4}>
+              <Box>
+                <strong>ID:</strong> {prompt.id}
+              </Box>
+              <Box>
+                <strong>Category:</strong> {prompt.category}
+              </Box>
+              <Box>
+                <strong>Created At:</strong>{' '}
+                {new Date(prompt.created_at).toLocaleString()}
+              </Box>
+              <Box>
+                <strong>Updated At:</strong>{' '}
+                {new Date(prompt.updated_at).toLocaleString()}
+              </Box>
+            </Stack>
+          </Box>
         )}
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              内容
-            </label>
-            <textarea
-              value={content}
-              onChange={e => setContent(e.target.value)}
-              disabled={!isEditing}
-              rows={10}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50"
-            />
-          </div>
+        <Stack spacing={3}>
+          <TextField
+            label="Content"
+            multiline
+            rows={20}
+            value={content}
+            onChange={e => setContent(e.target.value)}
+            disabled={!isEditing}
+            fullWidth
+            variant="outlined"
+          />
 
-          <div>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
+          <FormControlLabel
+            control={
+              <Checkbox
                 checked={active}
                 onChange={e => setActive(e.target.checked)}
                 disabled={!isEditing}
-                className="mr-2"
               />
-              <span className="text-sm font-medium text-gray-700">启用</span>
-            </label>
-          </div>
+            }
+            label="Active"
+          />
 
-          {isEditing && (
-            <div className="flex space-x-4">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {saving ? '保存中...' : '保存'}
-              </button>
-              {!isNew && prompt && (
-                <button
-                  onClick={() => {
-                    setIsEditing(false);
-                    setContent(prompt.content);
-                    setActive(prompt.active);
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            {isEditing ? (
+              <>
+                <Button
+                  variant="contained"
+                  onClick={handleSave}
+                  disabled={saving}
+                  startIcon={<SaveIcon />}
                 >
-                  取消
-                </button>
-              )}
-            </div>
-          )}
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+                {!isNew && prompt && (
+                  <Button
+                    variant="outlined"
+                    onClick={() => {
+                      setIsEditing(false);
+                      setContent(prompt.content);
+                      setActive(prompt.active);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Button
+                variant="contained"
+                onClick={() => setIsEditing(true)}
+                startIcon={<EditIcon />}
+              >
+                Edit
+              </Button>
+            )}
+          </Box>
+        </Stack>
+      </Paper>
 
-          {!isEditing && !isNew && (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-            >
-              编辑
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={handleCloseSnackbar}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
   );
 }

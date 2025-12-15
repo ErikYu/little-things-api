@@ -8,7 +8,9 @@
   "scripts": {
     "db:migrate-dev": "prisma migrate dev",
     "db:migrate-deploy": "prisma migrate deploy",
-    "build": "nest build",
+    "build:fe": "nx build admin",
+    "build:be": "nest build",
+    "build": "pnpm run build:fe && pnpm run build:be",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",

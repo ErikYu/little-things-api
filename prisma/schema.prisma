@@ -10,6 +10,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model AdminUser {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  password      String
+  created_at    DateTime @default(now())
+  last_login_at DateTime @default(now())
+
+  @@map("admin_users")
+}
+
 model User {
   id            String   @id @default(cuid())
   apple_id      String?  @unique
@@ -17,6 +27,7 @@ model User {
   password      String?
   created_at    DateTime @default(now())
   last_login_at DateTime @default(now())
+  device_token  String?
 
   answers            Answer[]
   QuestionUserPinned QuestionUserPinned[]
@@ -100,4 +111,20 @@ model AnswerIcon {
   answer Answer @relation(fields: [answer_id], references: [id])
 
   @@map("answer_icons")
+}
+
+enum PromptCategory {
+  ICON_GENERATION
+}
+
+model Prompt {
+  id         String         @id @default(cuid())
+  category   PromptCategory
+  content    String
+  active     Boolean
+  created_at DateTime       @default(now())
+  updated_at DateTime       @updatedAt
+  deleted_at DateTime?
+
+  @@map("prompts")
 }

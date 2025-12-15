@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { AdminAuthModule } from './admin-auth/admin-auth.module';
+import { AdminPromptModule } from './admin-prompt/admin-prompt.module';
 import { OnboardModule } from './onboard/onboard.module';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
@@ -63,6 +65,8 @@ import { randomUUID } from 'crypto';
       },
     }),
     AuthModule,
+    AdminAuthModule,
+    AdminPromptModule,
     OnboardModule,
     ConfigModule.forRoot(),
   ],

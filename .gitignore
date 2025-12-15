@@ -60,3 +60,9 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 prisma/*.db
 
 ecosystem.config.js
+
+
+.nx/cache
+.nx/workspace-data
+vite.config.*.timestamp*
+vitest.config.*.timestamp*

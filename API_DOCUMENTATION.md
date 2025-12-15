@@ -2,6 +2,10 @@
 
 ## Changelog
 
+### 2025-12-15
+
+- 新增 `POST /api/device-token` 接口：保存用户设备Token，用于推送通知
+
 ### 2025-12-11
 
 - 更新 `GET /api/calendar-view` 接口：响应中每个 reflection 新增 `question` 字段，包含问题 ID、标题和分类信息
@@ -96,6 +100,27 @@ Authorization: Bearer <your-jwt-token>
         "id": "clud1234567890abcdef",
         "email": "user@privaterelay.appleid.com"
       }
+    }
+  }
+  ```
+
+#### 1.3 保存设备Token
+
+- **URL**: `POST /api/device-token`
+- **描述**: 保存用户设备Token，用于后续推送通知功能
+- **认证**: 需要
+- **请求参数**:
+  ```json
+  {
+    "deviceToken": "xxxxxxxxxxxxxxxxxxxx"
+  }
+  ```
+- **响应示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "device_token": "xxxxxxxxxxxxxxxxxxxx"
     }
   }
   ```

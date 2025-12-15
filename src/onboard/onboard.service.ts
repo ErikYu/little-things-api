@@ -478,9 +478,10 @@ export class OnboardService {
   }
 
   async saveDeviceToken(userId: string, deviceToken: string) {
-    return this.prisma.user.update({
+    await this.prisma.user.update({
       where: { id: userId },
       data: { device_token: deviceToken },
     });
+    return { device_token: deviceToken };
   }
 }

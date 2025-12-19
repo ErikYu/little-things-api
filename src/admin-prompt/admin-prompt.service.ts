@@ -23,12 +23,37 @@ export class AdminPromptService {
       );
     }
 
-    return await this.prisma.prompt.create({
-      data: {
-        category: createDto.category,
-        content: createDto.content,
-        active: createDto.active,
-      },
+    // 使用事务创建 prompt 和初始版本
+    return await this.prisma.$transaction(async tx => {
+      // 1. 创建 prompt
+      const prompt = await tx.prompt.create({
+        data: {
+          category: createDto.category,
+          content: createDto.content,
+          active: createDto.active,
+        },
+      });
+
+      // 2. 创建初始版本（version 1）
+      const version = await tx.promptVersion.create({
+        data: {
+          prompt_id: prompt.id,
+          version: 1,
+          content: createDto.content,
+          change_note: createDto.change_note || 'Initial version',
+        },
+      });
+
+      // 3. 关联当前版本
+      return await tx.prompt.update({
+        where: { id: prompt.id },
+        data: {
+          current_version_id: version.id,
+        },
+        include: {
+          current_version: true,
+        },
+      });
     });
   }
 
@@ -55,13 +80,56 @@ export class AdminPromptService {
       );
     }
 
-    return await this.prisma.prompt.update({
-      where: { id },
-      data: {
-        ...(updateDto.content !== undefined && { content: updateDto.content }),
-        ...(updateDto.active !== undefined && { active: updateDto.active }),
-      },
-    });
+    // 判断内容是否有变化
+    const contentChanged =
+      updateDto.content !== undefined && updateDto.content !== prompt.content;
+
+    // 如果内容有变化，需要创建新版本
+    if (contentChanged) {
+      return await this.prisma.$transaction(async tx => {
+        // 1. 获取当前最大版本号
+        const maxVersion = await tx.promptVersion.findFirst({
+          where: { prompt_id: id },
+          orderBy: { version: 'desc' },
+        });
+
+        const nextVersion = (maxVersion?.version || 0) + 1;
+
+        // 2. 创建新版本
+        const newVersion = await tx.promptVersion.create({
+          data: {
+            prompt_id: id,
+            version: nextVersion,
+            content: updateDto.content!,
+            change_note: updateDto.change_note || null,
+          },
+        });
+
+        // 3. 更新 prompt 主表（包括内容和当前版本关联）
+        return await tx.prompt.update({
+          where: { id },
+          data: {
+            content: updateDto.content,
+            ...(updateDto.active !== undefined && { active: updateDto.active }),
+            current_version_id: newVersion.id,
+          },
+          include: {
+            current_version: true,
+          },
+        });
+      });
+    } else {
+      // 如果内容没有变化，只更新 active 状态
+      return await this.prisma.prompt.update({
+        where: { id },
+        data: {
+          ...(updateDto.active !== undefined && { active: updateDto.active }),
+        },
+        include: {
+          current_version: true,
+        },
+      });
+    }
   }
 
   async delete(id: string) {
@@ -139,6 +207,15 @@ export class AdminPromptService {
         id,
         deleted_at: null,
       },
+      select: {
+        id: true,
+        category: true,
+        content: true,
+        active: true,
+        created_at: true,
+        updated_at: true,
+        current_version_id: true,
+      },
     });
 
     if (!prompt) {
@@ -146,5 +223,31 @@ export class AdminPromptService {
     }
 
     return prompt;
+  }
+
+  async getVersions(promptId: string) {
+    // 检查 prompt 是否存在
+    const prompt = await this.prisma.prompt.findFirst({
+      where: {
+        id: promptId,
+        deleted_at: null,
+      },
+    });
+
+    if (!prompt) {
+      throw new NotFoundException('Prompt not found');
+    }
+
+    // 获取所有版本，按时间倒序
+    const versions = await this.prisma.promptVersion.findMany({
+      where: {
+        prompt_id: promptId,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    return versions;
   }
 }

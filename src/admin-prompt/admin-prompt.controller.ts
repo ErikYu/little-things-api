@@ -88,4 +88,19 @@ export class AdminPromptController {
       );
     }
   }
+
+  @Get(':id/versions')
+  async getVersions(@Param('id') id: string) {
+    try {
+      return await this.adminPromptService.getVersions(id);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        `Query failed: ${(error as Error).message}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
 }

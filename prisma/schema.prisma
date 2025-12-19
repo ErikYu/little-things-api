@@ -121,15 +121,37 @@ enum PromptCategory {
 }
 
 model Prompt {
-  id         String         @id @default(cuid())
-  category   PromptCategory
-  content    String
-  active     Boolean
-  created_at DateTime       @default(now())
-  updated_at DateTime       @updatedAt
-  deleted_at DateTime?
+  id                 String         @id @default(cuid())
+  category           PromptCategory
+  content            String
+  active             Boolean
+  created_at         DateTime       @default(now())
+  updated_at         DateTime       @updatedAt
+  deleted_at         DateTime?
+  current_version_id String?        @unique
+
+  current_version PromptVersion?  @relation("CurrentVersion", fields: [current_version_id], references: [id], onDelete: SetNull)
+  versions        PromptVersion[]
 
   @@map("prompts")
+}
+
+model PromptVersion {
+  id          String   @id @default(cuid())
+  prompt_id   String
+  version     Int
+  content     String
+  created_by  String?
+  created_at  DateTime @default(now())
+  change_note String?
+
+  prompt        Prompt  @relation(fields: [prompt_id], references: [id], onDelete: Cascade)
+  currentPrompt Prompt? @relation("CurrentVersion")
+
+  @@unique([prompt_id, version])
+  @@index([prompt_id])
+  @@index([prompt_id, version])
+  @@map("prompt_versions")
 }
 
 enum APNHistoryStatus {

@@ -4,11 +4,13 @@ export interface CreatePromptDto {
   category: PromptCategory;
   content: string;
   active: boolean;
+  change_note?: string;
 }
 
 export interface UpdatePromptDto {
   content?: string;
   active?: boolean;
+  change_note?: string;
 }
 
 export interface QueryPromptDto {

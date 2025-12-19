@@ -1,17 +1,27 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { IconService } from 'src/onboard/icon.service';
 
 @Injectable()
-export class IconRetryScheduler {
+export class IconRetryScheduler implements OnModuleInit {
   private readonly logger = new Logger(IconRetryScheduler.name);
   private isProcessing = false; // 执行锁，防止并发执行
+  private retryingIconIds = new Set<string>(); // 正在重试的 icon ID 集合
+
+  onModuleInit() {
+    // this.handleFailedIcons();
+  }
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly iconService: IconService,
   ) {}
+
+  // 获取正在重试的 icon ID 列表
+  getRetryingIconIds(): string[] {
+    return Array.from(this.retryingIconIds);
+  }
 
   @Cron('*/15 * * * *') // 每15分钟执行一次
   async handleFailedIcons() {
@@ -27,10 +37,11 @@ export class IconRetryScheduler {
     this.logger.log('Starting to check for failed icons...');
 
     try {
-      // 查询所有状态为 FAILED 的 icon，并获取对应的 answer content
+      // 查询所有状态为 FAILED 且 bypass 为 false 的 icon，并获取对应的 answer content
       const failedIcons = await this.prisma.answerIcon.findMany({
         where: {
           status: 'FAILED',
+          bypass: false, // 过滤掉 bypass 为 true 的 icon
         },
         include: {
           answer: {
@@ -52,6 +63,19 @@ export class IconRetryScheduler {
       // 为每个失败的 icon 重新执行生成
       for (const icon of failedIcons) {
         try {
+          // 再次检查状态，确保仍然是 FAILED（可能在查询后被其他地方修改了）
+          const currentIcon = await this.prisma.answerIcon.findUnique({
+            where: { id: icon.id },
+            select: { status: true },
+          });
+
+          if (!currentIcon || currentIcon.status !== 'FAILED') {
+            this.logger.log(
+              `Icon ${icon.id} status is no longer FAILED (current: ${currentIcon?.status || 'not found'}), skipping.`,
+            );
+            continue;
+          }
+
           // 将状态重置为 PENDING
           await this.prisma.answerIcon.update({
             where: { id: icon.id },
@@ -61,25 +85,26 @@ export class IconRetryScheduler {
             },
           });
 
+          // 标记为正在重试
+          this.retryingIconIds.add(icon.id);
+
           // 重新执行生成
           this.logger.log(
             `Retrying icon generation for iconId: ${icon.id}, answerId: ${icon.answer_id}`,
           );
-          await this.iconService.generateIcon(icon.id, icon.answer.content);
+
+          try {
+            await this.iconService.generateIcon(icon.id, icon.answer.content);
+          } finally {
+            // 生成完成后（无论成功或失败）移除重试标记
+            this.retryingIconIds.delete(icon.id);
+          }
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : 'Unknown error';
           this.logger.error(
             `Failed to retry icon generation for iconId: ${icon.id}. Error: ${errorMessage}`,
           );
-          // 如果重试失败，将状态重新设置为 FAILED
-          await this.prisma.answerIcon.update({
-            where: { id: icon.id },
-            data: {
-              status: 'FAILED',
-              error: errorMessage,
-            },
-          });
         }
       }
 

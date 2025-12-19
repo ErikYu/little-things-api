@@ -109,6 +109,7 @@ model AnswerIcon {
   created_at DateTime         @default(now())
   updated_at DateTime         @updatedAt
   error      String?
+  bypass     Boolean          @default(false)
 
   answer Answer @relation(fields: [answer_id], references: [id])
 

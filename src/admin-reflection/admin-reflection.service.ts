@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueryReflectionDto } from './dto';
 import { IconService } from '../onboard/icon.service';
+import { IconRetryScheduler } from '../schedulers/icon-retry.scheduler';
 
 @Injectable()
 export class AdminReflectionService {
@@ -10,6 +11,7 @@ export class AdminReflectionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly iconService: IconService,
+    private readonly iconRetryScheduler: IconRetryScheduler,
   ) {}
 
   async findList(queryDto: QueryReflectionDto) {
@@ -41,6 +43,7 @@ export class AdminReflectionService {
             id: true,
             url: true,
             status: true,
+            bypass: true,
           },
         },
         question: {
@@ -131,6 +134,80 @@ export class AdminReflectionService {
       success: true,
       message: 'Icon regeneration started',
       iconId,
+    };
+  }
+
+  async getRetryingIcons() {
+    const retryingIconIds = this.iconRetryScheduler.getRetryingIconIds();
+
+    if (retryingIconIds.length === 0) {
+      return {
+        retryingIcons: [],
+        count: 0,
+      };
+    }
+
+    // 查询正在重试的 icon 及其对应的 answer
+    const retryingIcons = await this.prisma.answerIcon.findMany({
+      where: {
+        id: {
+          in: retryingIconIds,
+        },
+      },
+      include: {
+        answer: {
+          select: {
+            id: true,
+            content: true,
+          },
+        },
+      },
+    });
+
+    return {
+      retryingIcons: retryingIcons.map(icon => ({
+        iconId: icon.id,
+        answerId: icon.answer_id,
+        content: icon.answer.content,
+      })),
+      count: retryingIcons.length,
+    };
+  }
+
+  async setBypass(answerId: string, bypass: boolean) {
+    // 查找答案及其icon
+    const answer = await this.prisma.answer.findUnique({
+      where: { id: answerId },
+      include: {
+        icon: true,
+      },
+    });
+
+    if (!answer) {
+      throw new NotFoundException('Answer not found');
+    }
+
+    if (!answer.icon) {
+      throw new NotFoundException('Icon not found for this answer');
+    }
+
+    // 更新 bypass 状态
+    await this.prisma.answerIcon.update({
+      where: { id: answer.icon.id },
+      data: {
+        bypass,
+      },
+    });
+
+    this.logger.log(
+      `Set bypass=${bypass} for icon ${answer.icon.id} (answer ${answerId})`,
+    );
+
+    return {
+      success: true,
+      message: `Icon bypass set to ${bypass}`,
+      iconId: answer.icon.id,
+      bypass,
     };
   }
 }

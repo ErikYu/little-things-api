@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Param,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, UseGuards } from '@nestjs/common';
 import { AdminReflectionService } from './admin-reflection.service';
 import { AdminAuthGuard } from '../admin-auth/admin-auth.guard';
 import { QueryReflectionDto } from './dto';
@@ -24,5 +17,18 @@ export class AdminReflectionController {
   async regenerateIcon(@Param('answerId') answerId: string) {
     return await this.service.regenerateIcon(answerId);
   }
-}
 
+  @Get('retrying-icons')
+  async getRetryingIcons() {
+    return await this.service.getRetryingIcons();
+  }
+
+  @Post(':answerId/bypass')
+  async setBypass(
+    @Param('answerId') answerId: string,
+    @Query('bypass') bypass: string,
+  ) {
+    const bypassValue = bypass === 'true' || bypass === '1';
+    return await this.service.setBypass(answerId, bypassValue);
+  }
+}

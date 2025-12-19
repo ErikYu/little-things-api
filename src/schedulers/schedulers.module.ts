@@ -11,6 +11,6 @@ import { OnboardModule } from 'src/onboard/onboard.module';
     OnboardModule, // 导入 OnboardModule 以使用 IconService
   ],
   providers: [IconRetryScheduler],
+  exports: [IconRetryScheduler], // 导出以便其他模块使用
 })
 export class SchedulersModule {}
-

@@ -15,12 +15,13 @@ import {
   Alert,
   Snackbar,
   Avatar,
-  Link,
   Tooltip,
   Button,
   CircularProgress,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
+import BlockIcon from '@mui/icons-material/Block';
 
 interface Reflection {
   id: string;
@@ -35,6 +36,7 @@ interface Reflection {
     id: string;
     url: string;
     status: string;
+    bypass?: boolean;
   } | null;
   question: {
     id: string;
@@ -72,6 +74,10 @@ export default function ReflectionList() {
     new Set(),
   );
 
+  const [retryingIcons, setRetryingIcons] = useState<
+    Array<{ iconId: string; answerId: string; content: string }>
+  >([]);
+
   const handleCloseSnackbar = () => {
     setSnackbar({ ...snackbar, open: false });
   };
@@ -107,6 +113,25 @@ export default function ReflectionList() {
     }
   };
 
+  const fetchRetryingIcons = async () => {
+    try {
+      // API 拦截器已经提取了 response.data.data，所以返回的直接就是数据对象
+      const response = (await api.get('/admin-reflection/retrying-icons')) as {
+        retryingIcons: Array<{
+          iconId: string;
+          answerId: string;
+          content: string;
+        }>;
+        count: number;
+      };
+      setRetryingIcons(response.retryingIcons || []);
+    } catch (err: unknown) {
+      // 静默失败，不影响主流程
+      console.error('Failed to fetch retrying icons:', err);
+      setRetryingIcons([]); // 出错时设置为空数组
+    }
+  };
+
   const handleRegenerateIcon = async (answerId: string) => {
     setRegeneratingIcons(prev => new Set(prev).add(answerId));
     try {
@@ -116,10 +141,12 @@ export default function ReflectionList() {
       setTimeout(() => {
         fetchReflections();
       }, 2000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       showSnackbar(
-        err.response?.data?.msg ||
-          err.response?.data?.message ||
+        (err as { response?: { data?: { msg?: string; message?: string } } })
+          ?.response?.data?.msg ||
+          (err as { response?: { data?: { msg?: string; message?: string } } })
+            ?.response?.data?.message ||
           'Failed to regenerate icon',
         'error',
       );
@@ -132,14 +159,51 @@ export default function ReflectionList() {
     }
   };
 
+  const handleSetBypass = async (answerId: string, bypass: boolean) => {
+    try {
+      await api.post(`/admin-reflection/${answerId}/bypass?bypass=${bypass}`);
+      showSnackbar(
+        `Icon bypass ${bypass ? 'enabled' : 'disabled'} successfully`,
+        'success',
+      );
+      fetchReflections();
+    } catch (err: unknown) {
+      showSnackbar(
+        (err as { response?: { data?: { msg?: string; message?: string } } })
+          ?.response?.data?.msg ||
+          (err as { response?: { data?: { msg?: string; message?: string } } })
+            ?.response?.data?.message ||
+          'Failed to set bypass',
+        'error',
+      );
+    }
+  };
+
   useEffect(() => {
     fetchReflections();
+    fetchRetryingIcons();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
+
+  // 如果有正在重试的icon，每5秒刷新一次状态
+  useEffect(() => {
+    if (retryingIcons.length === 0) return;
+
+    const interval = setInterval(() => {
+      fetchRetryingIcons();
+      fetchReflections();
+    }, 5000);
+
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryingIcons.length]);
 
   if (loading && reflections.length === 0) {
     return <Box sx={{ p: 3, textAlign: 'center' }}>Loading...</Box>;
   }
+
+  // 创建一个 Set 来快速查找正在 retry 的 answerId
+  const retryingAnswerIds = new Set(retryingIcons.map(icon => icon.answerId));
 
   return (
     <Box>
@@ -151,9 +215,65 @@ export default function ReflectionList() {
           mb: 3,
         }}
       >
-        <Typography variant="h5" component="h2">
-          Reflections
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="h5" component="h2">
+            Reflections
+          </Typography>
+          {retryingIcons.length > 0 && (
+            <Tooltip
+              title={
+                <Box>
+                  <Typography
+                    variant="body2"
+                    sx={{ mb: 1, fontWeight: 'bold' }}
+                  >
+                    {retryingIcons.length} icon(s) retrying:
+                  </Typography>
+                  {retryingIcons.map((retryingIcon, index) => (
+                    <Typography
+                      key={retryingIcon.iconId}
+                      variant="caption"
+                      component="div"
+                      sx={{ display: 'block', mb: 0.5 }}
+                    >
+                      {index + 1}. {retryingIcon.content.substring(0, 50)}
+                      {retryingIcon.content.length > 50 ? '...' : ''}
+                    </Typography>
+                  ))}
+                </Box>
+              }
+              arrow
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  color: 'warning.main',
+                  cursor: 'help',
+                }}
+              >
+                <AutorenewIcon
+                  sx={{
+                    fontSize: 20,
+                    animation: 'spin 2s linear infinite',
+                    '@keyframes spin': {
+                      '0%': {
+                        transform: 'rotate(0deg)',
+                      },
+                      '100%': {
+                        transform: 'rotate(360deg)',
+                      },
+                    },
+                  }}
+                />
+                <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                  {retryingIcons.length}
+                </Typography>
+              </Box>
+            </Tooltip>
+          )}
+        </Box>
       </Box>
 
       <TableContainer component={Paper}>
@@ -202,17 +322,40 @@ export default function ReflectionList() {
                           }}
                         />
                       )}
-                      <Chip
-                        label={reflection.icon.status}
-                        size="small"
-                        color={
-                          reflection.icon.status === 'GENERATED'
-                            ? 'success'
-                            : reflection.icon.status === 'FAILED'
-                              ? 'error'
-                              : 'warning'
-                        }
-                      />
+                      <Box
+                        sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                      >
+                        <Chip
+                          label={reflection.icon.status}
+                          size="small"
+                          color={
+                            reflection.icon.status === 'GENERATED'
+                              ? 'success'
+                              : reflection.icon.status === 'FAILED'
+                                ? 'error'
+                                : 'warning'
+                          }
+                        />
+                        {retryingAnswerIds.has(reflection.id) && (
+                          <Chip
+                            icon={<AutorenewIcon sx={{ fontSize: 14 }} />}
+                            label="Retrying"
+                            size="small"
+                            color="warning"
+                            sx={{
+                              animation: 'pulse 2s ease-in-out infinite',
+                              '@keyframes pulse': {
+                                '0%, 100%': {
+                                  opacity: 1,
+                                },
+                                '50%': {
+                                  opacity: 0.6,
+                                },
+                              },
+                            }}
+                          />
+                        )}
+                      </Box>
                     </Box>
                   ) : (
                     <Typography variant="caption" color="text.secondary">
@@ -251,24 +394,44 @@ export default function ReflectionList() {
                   {new Date(reflection.created_at).toLocaleString()}
                 </TableCell>
                 <TableCell>
-                  {(!reflection.icon ||
-                    reflection.icon.status === 'FAILED') && (
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={
-                        regeneratingIcons.has(reflection.id) ? (
-                          <CircularProgress size={16} />
-                        ) : (
-                          <RefreshIcon />
-                        )
-                      }
-                      onClick={() => handleRegenerateIcon(reflection.id)}
-                      disabled={regeneratingIcons.has(reflection.id)}
-                    >
-                      Regenerate
-                    </Button>
-                  )}
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    {(!reflection.icon ||
+                      reflection.icon.status === 'FAILED') && (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={
+                          regeneratingIcons.has(reflection.id) ? (
+                            <CircularProgress size={16} />
+                          ) : (
+                            <RefreshIcon />
+                          )
+                        }
+                        onClick={() => handleRegenerateIcon(reflection.id)}
+                        disabled={regeneratingIcons.has(reflection.id)}
+                      >
+                        Regenerate
+                      </Button>
+                    )}
+                    {reflection.icon?.status === 'FAILED' && (
+                      <Button
+                        variant={
+                          reflection.icon.bypass ? 'contained' : 'outlined'
+                        }
+                        size="small"
+                        startIcon={<BlockIcon />}
+                        onClick={() =>
+                          handleSetBypass(
+                            reflection.id,
+                            !reflection.icon?.bypass,
+                          )
+                        }
+                        color={reflection.icon.bypass ? 'warning' : 'inherit'}
+                      >
+                        {reflection.icon.bypass ? 'Bypassed' : 'Bypass'}
+                      </Button>
+                    )}
+                  </Box>
                 </TableCell>
               </TableRow>
             ))}
@@ -304,4 +467,3 @@ export default function ReflectionList() {
     </Box>
   );
 }
-

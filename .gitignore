@@ -4,6 +4,8 @@
 /build
 /dist-fe
 
+/cert
+
 # Logs
 logs
 *.log

@@ -8,6 +8,7 @@ import PromptList from '../pages/prompts/PromptList';
 import PromptDetail from '../pages/prompts/PromptDetail';
 import ReflectionList from '../pages/reflections/ReflectionList';
 import MemberList from '../pages/members/MemberList';
+import Notification from '../pages/notification/Notification';
 import { getToken } from '../utils/api';
 import theme from '../theme';
 
@@ -30,6 +31,7 @@ export function App() {
           <Route path="prompts/:id" element={<PromptDetail />} />
           <Route path="reflections" element={<ReflectionList />} />
           <Route path="members" element={<MemberList />} />
+          <Route path="notification" element={<Notification />} />
         </Route>
       </Routes>
     </ThemeProvider>

@@ -14,6 +14,12 @@ import {
   Alert,
   Snackbar,
   Chip,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material';
 
 interface User {
@@ -54,12 +60,58 @@ export default function MemberList() {
     severity: 'success',
   });
 
+  const [deviceTokenDialog, setDeviceTokenDialog] = useState<{
+    open: boolean;
+    userId: string | null;
+    deviceToken: string;
+  }>({
+    open: false,
+    userId: null,
+    deviceToken: '',
+  });
+
   const handleCloseSnackbar = () => {
     setSnackbar({ ...snackbar, open: false });
   };
 
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });
+  };
+
+  const handleOpenDeviceTokenDialog = (userId: string, currentToken: string | null) => {
+    setDeviceTokenDialog({
+      open: true,
+      userId,
+      deviceToken: currentToken || '',
+    });
+  };
+
+  const handleCloseDeviceTokenDialog = () => {
+    setDeviceTokenDialog({
+      open: false,
+      userId: null,
+      deviceToken: '',
+    });
+  };
+
+  const handleUpdateDeviceToken = async () => {
+    if (!deviceTokenDialog.userId) return;
+
+    try {
+      await api.put(`/admin-user/${deviceTokenDialog.userId}/device-token`, {
+        device_token: deviceTokenDialog.deviceToken,
+      });
+      showSnackbar('Device token updated successfully', 'success');
+      handleCloseDeviceTokenDialog();
+      fetchUsers();
+    } catch (err: any) {
+      showSnackbar(
+        err.response?.data?.msg ||
+          err.response?.data?.message ||
+          'Failed to update device token',
+        'error',
+      );
+    }
   };
 
   const fetchUsers = async () => {
@@ -120,6 +172,7 @@ export default function MemberList() {
               <TableCell>Last Login</TableCell>
               <TableCell>Registered At</TableCell>
               <TableCell>Device Token</TableCell>
+              <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -162,11 +215,56 @@ export default function MemberList() {
                         <Chip label="None" color="default" size="small" />
                     )}
                 </TableCell>
+                <TableCell>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() =>
+                      handleOpenDeviceTokenDialog(user.id, user.device_token)
+                    }
+                  >
+                    Set Token
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Dialog
+        open={deviceTokenDialog.open}
+        onClose={handleCloseDeviceTokenDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Set Device Token</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Device Token"
+            type="text"
+            fullWidth
+            variant="outlined"
+            value={deviceTokenDialog.deviceToken}
+            onChange={(e) =>
+              setDeviceTokenDialog({
+                ...deviceTokenDialog,
+                deviceToken: e.target.value,
+              })
+            }
+            placeholder="Enter device token"
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeviceTokenDialog}>Cancel</Button>
+          <Button onClick={handleUpdateDeviceToken} variant="contained">
+            Update
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {totalPages > 1 && (
         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>

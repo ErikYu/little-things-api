@@ -31,6 +31,7 @@ model User {
 
   answers            Answer[]
   QuestionUserPinned QuestionUserPinned[]
+  apnhistories       APNHistory[]
 
   @@map("users")
 }
@@ -127,4 +128,28 @@ model Prompt {
   deleted_at DateTime?
 
   @@map("prompts")
+}
+
+enum APNHistoryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model APNHistory {
+  id           String           @id @default(cuid())
+  user_id      String
+  device_token String
+  title        String?
+  subtitle     String?
+  body         String?
+  topic        String?
+  status       APNHistoryStatus
+  error        String?
+  created_at   DateTime         @default(now())
+  updated_at   DateTime         @updatedAt
+
+  user User @relation(fields: [user_id], references: [id])
+
+  @@map("apn_histories")
 }

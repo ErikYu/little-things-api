@@ -17,6 +17,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import PeopleIcon from '@mui/icons-material/People';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 
 const drawerWidth = 240;
 
@@ -86,6 +87,17 @@ export default function Layout() {
                 <PeopleIcon />
               </ListItemIcon>
               <ListItemText primary="Members" />
+            </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding>
+            <ListItemButton
+              selected={location.pathname.startsWith('/notification')}
+              onClick={() => navigate('/notification')}
+            >
+              <ListItemIcon>
+                <NotificationsIcon />
+              </ListItemIcon>
+              <ListItemText primary="Notification" />
             </ListItemButton>
           </ListItem>
         </List>

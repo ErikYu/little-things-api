@@ -90,11 +90,7 @@ export class ApnService {
     userId: string,
     payload: PushNotificationPayload,
   ): Promise<boolean> {
-    // 确定最终的 topic 值
-    const finalTopic =
-      payload.topic && payload.topic !== 'bundleId'
-        ? payload.topic
-        : this.bundleId;
+    const customTopic = payload?.topic;
 
     // 创建通知记录（PENDING 状态）
     let historyId: string;
@@ -109,15 +105,14 @@ export class ApnService {
       if (!user) {
         this.logger.error(`User ${userId} not found`);
         // 创建失败记录
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        await (this.prisma as any).aPNHistory.create({
+        await this.prisma.aPNHistory.create({
           data: {
             user_id: userId,
             device_token: '',
             title: payload.title,
             subtitle: payload.subtitle,
             body: payload.body,
-            topic: finalTopic,
+            topic: customTopic || null,
             status: 'FAILED',
             error: 'User not found',
           },
@@ -128,15 +123,14 @@ export class ApnService {
       if (!user.device_token) {
         this.logger.warn(`User ${userId} does not have a device token`);
         // 创建失败记录
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        await (this.prisma as any).aPNHistory.create({
+        await this.prisma.aPNHistory.create({
           data: {
             user_id: userId,
             device_token: '',
             title: payload.title,
             subtitle: payload.subtitle,
             body: payload.body,
-            topic: finalTopic,
+            topic: customTopic || null,
             status: 'FAILED',
             error: 'User does not have a device token',
           },
@@ -147,20 +141,18 @@ export class ApnService {
       deviceToken = user.device_token;
 
       // 创建 PENDING 记录
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      const history = await (this.prisma as any).aPNHistory.create({
+      const history = await this.prisma.aPNHistory.create({
         data: {
           user_id: userId,
           device_token: deviceToken,
           title: payload.title,
           subtitle: payload.subtitle,
           body: payload.body,
-          topic: finalTopic,
+          topic: customTopic || null,
           status: 'PENDING',
         },
       });
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      historyId = history.id as string;
+      historyId = history.id;
     } catch (error) {
       this.logger.error(`Failed to create APN history record`, error);
       return false;
@@ -169,8 +161,7 @@ export class ApnService {
     if (!this.apnProvider) {
       this.logger.error('APN Provider is not initialized');
       // 更新记录为失败
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      await (this.prisma as any).aPNHistory.update({
+      await this.prisma.aPNHistory.update({
         where: { id: historyId },
         data: {
           status: 'FAILED',
@@ -200,55 +191,54 @@ export class ApnService {
         notification.alert = payload.body;
       }
 
-      // 设置 topic
-      notification.topic = finalTopic;
+      // 设置 topic（永远是 bundleId）
+      notification.topic = this.bundleId;
+
+      // 如果有自定义 topic，将其添加到 payload 中
+      if (customTopic) {
+        notification.payload = {
+          ...notification.payload,
+          custom: {
+            topic: customTopic,
+          },
+        };
+      }
 
       // 设置优先级和过期时间
       notification.priority = 10; // 高优先级
       notification.expiry = Math.floor(Date.now() / 1000) + 3600; // 1小时后过期
 
+      console.log(notification);
+
       const result = await this.apnProvider.send(notification, deviceToken);
+
+      console.log(result.failed);
 
       // 检查是否有失败的发送
       if (result.failed && result.failed.length > 0) {
-        const errorMessages: string[] = [];
+        const errorReasons: string[] = [];
         result.failed.forEach(failure => {
-          const errorMessage =
-            failure.error instanceof Error
-              ? failure.error.message
-              : failure.status || String(failure.error);
-          const statusCode =
-            failure.status ||
-            (failure.response &&
-            typeof failure.response === 'object' &&
-            'status' in failure.response
-              ? (failure.response as { status: string | number }).status
-              : undefined);
-
-          const fullErrorMessage = `Device: ${failure.device}, Status: ${statusCode}, Error: ${errorMessage}`;
-          errorMessages.push(fullErrorMessage);
-
+          if (failure.response?.reason) {
+            errorReasons.push(failure.response.reason);
+          }
           this.logger.error(
-            `Failed to send notification to user ${userId}, ${fullErrorMessage}`,
-            failure.response ? JSON.stringify(failure.response) : undefined,
+            `Failed to send notification to user ${userId}, ${failure.response?.reason}`,
           );
         });
 
         // 更新记录为失败
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        await (this.prisma as any).aPNHistory.update({
+        await this.prisma.aPNHistory.update({
           where: { id: historyId },
           data: {
             status: 'FAILED',
-            error: errorMessages.join('; '),
+            error: errorReasons.join('; '),
           },
         });
         return false;
       }
 
       // 更新记录为成功
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      await (this.prisma as any).aPNHistory.update({
+      await this.prisma.aPNHistory.update({
         where: { id: historyId },
         data: {
           status: 'SENT',
@@ -260,8 +250,7 @@ export class ApnService {
       this.logger.error(`Failed to send notification to user ${userId}`, error);
       // 更新记录为失败
       try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        await (this.prisma as any).aPNHistory.update({
+        await this.prisma.aPNHistory.update({
           where: { id: historyId },
           data: {
             status: 'FAILED',

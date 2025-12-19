@@ -8,6 +8,7 @@ import {
   Request,
   Query,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { OnboardService } from './onboard.service';
@@ -21,6 +22,7 @@ interface AuthenticatedRequest extends Request {
 
 @Controller()
 export class OnboardController {
+  private readonly logger = new Logger(OnboardController.name);
   constructor(private readonly onboardService: OnboardService) {}
 
   @ApiOperation({ summary: '获取引导页面的静态数据' })
@@ -152,6 +154,7 @@ export class OnboardController {
     @Body() body: { deviceToken: string },
   ) {
     const userId = req.user.userId;
+    this.logger.log(`saveDeviceToken for user ${userId}: ${body.deviceToken}`);
     if (!body.deviceToken) {
       throw new BadRequestException('Device Token is required');
     }

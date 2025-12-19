@@ -8,6 +8,7 @@ import { AdminReflectionModule } from './admin-reflection/admin-reflection.modul
 import { AdminUserModule } from './admin-user/admin-user.module';
 import { AdminNotificationModule } from './admin-notification/admin-notification.module';
 import { OnboardModule } from './onboard/onboard.module';
+import { SchedulersModule } from './schedulers/schedulers.module';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'crypto';
@@ -74,6 +75,7 @@ import { randomUUID } from 'crypto';
     AdminUserModule,
     AdminNotificationModule,
     OnboardModule,
+    SchedulersModule,
     ConfigModule.forRoot(),
   ],
   controllers: [AppController],

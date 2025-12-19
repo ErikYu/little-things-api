@@ -15,9 +15,8 @@ import {
   takeWhile,
 } from 'rxjs';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { APIConnectionTimeoutError } from 'openai';
-import type { ImagesResponse } from 'openai/resources/images';
 import { PromptCategory } from '@prisma/client';
+import { ImagesResponse } from 'openai/resources/images';
 
 const DEFAULT_PROMPT = `The Single-Layer System Prompt
 Task: Create a cute, minimalist single vector icon based on the following user text: "[INSERT_USER_REFLECTION_HERE]"
@@ -108,53 +107,28 @@ export class IconService {
     );
     this.logger.log(`Icon[${iconId}]: Starting to generate icon`);
 
-    let response: ImagesResponse | undefined;
-    let lastError: Error | null = null;
-    const maxRetries = 3;
+    let response: ImagesResponse;
+    try {
+      response = await llm.images.generate({
+        model: 'gpt-image-1',
+        prompt: _prompt,
+        size: '1024x1024',
+        background: 'transparent',
+        quality: 'low',
+        output_format: 'webp',
+        response_format: 'b64_json',
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      await this.prisma.answerIcon.update({
+        where: { id: iconId },
+        data: {
+          status: 'FAILED',
+          error: errorMessage,
+        },
+      });
 
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        response = await llm.images.generate({
-          model: 'gpt-image-1',
-          prompt: _prompt,
-          size: '1024x1024',
-          background: 'transparent',
-          quality: 'low',
-          output_format: 'webp',
-          response_format: 'b64_json',
-        });
-        break; // 成功则跳出循环
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-
-        if (
-          error instanceof APIConnectionTimeoutError &&
-          attempt < maxRetries
-        ) {
-          this.logger.warn(
-            `Icon[${iconId}]: APIConnectionTimeoutError on attempt ${attempt + 1}, retrying...`,
-          );
-          continue;
-        }
-
-        // 非超时错误或已用完重试次数，直接抛出
-        throw error;
-      }
-    }
-
-    if (!response) {
-      const errorMessage = lastError
-        ? lastError instanceof Error
-          ? lastError.message
-          : String(lastError)
-        : 'Failed to generate icon after retries';
-      const errorStack =
-        lastError instanceof Error ? lastError.stack : undefined;
-      this.logger.error(
-        `Icon[${iconId}]: Failed to generate icon after ${maxRetries} retries: ${errorMessage}`,
-        errorStack,
-      );
-      // 继续执行，让下面的 else 分支统一处理失败
+      throw new Error('Call error: Failed to generate');
     }
 
     if (

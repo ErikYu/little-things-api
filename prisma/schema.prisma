@@ -108,6 +108,7 @@ model AnswerIcon {
   status     AnswerIconStatus
   created_at DateTime         @default(now())
   updated_at DateTime         @updatedAt
+  error      String?
 
   answer Answer @relation(fields: [answer_id], references: [id])
 

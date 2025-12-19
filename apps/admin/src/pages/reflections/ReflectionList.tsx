@@ -17,7 +17,10 @@ import {
   Avatar,
   Link,
   Tooltip,
+  Button,
+  CircularProgress,
 } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
 interface Reflection {
   id: string;
@@ -65,6 +68,10 @@ export default function ReflectionList() {
     severity: 'success',
   });
 
+  const [regeneratingIcons, setRegeneratingIcons] = useState<Set<string>>(
+    new Set(),
+  );
+
   const handleCloseSnackbar = () => {
     setSnackbar({ ...snackbar, open: false });
   };
@@ -97,6 +104,31 @@ export default function ReflectionList() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRegenerateIcon = async (answerId: string) => {
+    setRegeneratingIcons(prev => new Set(prev).add(answerId));
+    try {
+      await api.post(`/admin-reflection/${answerId}/regenerate-icon`);
+      showSnackbar('Icon regeneration started successfully', 'success');
+      // 延迟刷新列表，给生成一些时间
+      setTimeout(() => {
+        fetchReflections();
+      }, 2000);
+    } catch (err: any) {
+      showSnackbar(
+        err.response?.data?.msg ||
+          err.response?.data?.message ||
+          'Failed to regenerate icon',
+        'error',
+      );
+    } finally {
+      setRegeneratingIcons(prev => {
+        const next = new Set(prev);
+        next.delete(answerId);
+        return next;
+      });
     }
   };
 
@@ -133,6 +165,7 @@ export default function ReflectionList() {
               <TableCell>Content</TableCell>
               <TableCell>Question</TableCell>
               <TableCell>Created At</TableCell>
+              <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -216,6 +249,26 @@ export default function ReflectionList() {
                 </TableCell>
                 <TableCell>
                   {new Date(reflection.created_at).toLocaleString()}
+                </TableCell>
+                <TableCell>
+                  {(!reflection.icon ||
+                    reflection.icon.status === 'FAILED') && (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={
+                        regeneratingIcons.has(reflection.id) ? (
+                          <CircularProgress size={16} />
+                        ) : (
+                          <RefreshIcon />
+                        )
+                      }
+                      onClick={() => handleRegenerateIcon(reflection.id)}
+                      disabled={regeneratingIcons.has(reflection.id)}
+                    >
+                      Regenerate
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

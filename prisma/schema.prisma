@@ -102,17 +102,20 @@ enum AnswerIconStatus {
 }
 
 model AnswerIcon {
-  id         String           @id @default(cuid())
-  answer_id  String           @unique
-  url        String
-  status     AnswerIconStatus
-  created_at DateTime         @default(now())
-  updated_at DateTime         @updatedAt
-  error      String?
-  bypass     Boolean          @default(false)
+  id                String           @id @default(cuid())
+  answer_id         String           @unique
+  url               String
+  status            AnswerIconStatus
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
+  error             String?
+  bypass            Boolean          @default(false)
+  prompt_version_id String?
 
-  answer Answer @relation(fields: [answer_id], references: [id])
+  answer         Answer         @relation(fields: [answer_id], references: [id])
+  prompt_version PromptVersion? @relation(fields: [prompt_version_id], references: [id], onDelete: SetNull)
 
+  @@index([prompt_version_id])
   @@map("answer_icons")
 }
 
@@ -145,8 +148,9 @@ model PromptVersion {
   created_at  DateTime @default(now())
   change_note String?
 
-  prompt        Prompt  @relation(fields: [prompt_id], references: [id], onDelete: Cascade)
-  currentPrompt Prompt? @relation("CurrentVersion")
+  prompt        Prompt       @relation(fields: [prompt_id], references: [id], onDelete: Cascade)
+  currentPrompt Prompt?      @relation("CurrentVersion")
+  answer_icons  AnswerIcon[]
 
   @@unique([prompt_id, version])
   @@index([prompt_id])

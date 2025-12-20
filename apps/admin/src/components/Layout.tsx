@@ -16,6 +16,11 @@ import {
   IconButton,
   Tooltip,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -35,6 +40,7 @@ export default function Layout() {
     const saved = localStorage.getItem('LTADMIN:COLLAPSE');
     return saved === 'true';
   });
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('LTADMIN:COLLAPSE', collapsed.toString());
@@ -44,9 +50,17 @@ export default function Layout() {
     setCollapsed(!collapsed);
   };
 
-  const handleLogout = () => {
+  const handleLogoutClick = () => {
+    setLogoutDialogOpen(true);
+  };
+
+  const handleLogoutConfirm = () => {
     removeToken();
     navigate('/login');
+  };
+
+  const handleLogoutCancel = () => {
+    setLogoutDialogOpen(false);
   };
 
   return (
@@ -272,7 +286,7 @@ export default function Layout() {
                 color="error"
                 startIcon={!collapsed ? <LogoutIcon /> : null}
                 fullWidth={!collapsed}
-                onClick={handleLogout}
+                onClick={handleLogoutClick}
                 sx={{
                   minWidth: collapsed ? 40 : 'auto',
                   minHeight: collapsed ? 40 : 'auto',
@@ -343,6 +357,27 @@ export default function Layout() {
         <Toolbar />
         <Outlet />
       </Box>
+      <Dialog
+        open={logoutDialogOpen}
+        onClose={handleLogoutCancel}
+        aria-labelledby="logout-dialog-title"
+        aria-describedby="logout-dialog-description"
+      >
+        <DialogTitle id="logout-dialog-title">Confirm Logout</DialogTitle>
+        <DialogContent>
+          <DialogContentText id="logout-dialog-description">
+            Are you sure you want to logout?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleLogoutCancel} color="inherit">
+            Cancel
+          </Button>
+          <Button onClick={handleLogoutConfirm} color="error" variant="contained">
+            Logout
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

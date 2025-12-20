@@ -103,4 +103,40 @@ export class AdminPromptController {
       );
     }
   }
+
+  @Post(':id/versions/:versionId/apply')
+  async applyVersion(
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+  ) {
+    try {
+      return await this.adminPromptService.applyVersion(id, versionId);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        `Apply failed: ${(error as Error).message}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Delete(':id/versions/:versionId')
+  async deleteVersion(
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+  ) {
+    try {
+      return await this.adminPromptService.deleteVersion(id, versionId);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        `Delete failed: ${(error as Error).message}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
 }

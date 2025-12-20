@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
+import VersionHistoryDrawer from '../../components/VersionHistoryDrawer';
 import {
   Paper,
   Table,
@@ -23,9 +24,9 @@ import {
   DialogTitle,
   Snackbar,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import HistoryIcon from '@mui/icons-material/History';
 
 interface Prompt {
   id: string;
@@ -34,6 +35,8 @@ interface Prompt {
   active: boolean;
   created_at: string;
   updated_at: string;
+  versionCount?: number;
+  current_version_id?: string | null;
 }
 
 interface PromptListResponse {
@@ -54,6 +57,10 @@ export default function PromptList() {
   const [totalPages, setTotalPages] = useState(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [promptToDelete, setPromptToDelete] = useState<string | null>(null);
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
+  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
+  const [selectedPromptCurrentVersionId, setSelectedPromptCurrentVersionId] =
+    useState<string | null>(null);
 
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -148,23 +155,24 @@ export default function PromptList() {
         <Typography variant="h5" component="h2">
           Prompts
         </Typography>
-        <Button
+        {/* Temporarily hidden */}
+        {/* <Button
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => navigate('/prompts/new')}
         >
           New Prompt
-        </Button>
+        </Button> */}
       </Box>
 
       <TableContainer component={Paper}>
         <Table sx={{ minWidth: 650 }} aria-label="simple table">
           <TableHead>
             <TableRow>
-              <TableCell>ID</TableCell>
               <TableCell>Category</TableCell>
               <TableCell>Content</TableCell>
               <TableCell>Status</TableCell>
+              <TableCell>Versions</TableCell>
               <TableCell>Created At</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
@@ -175,9 +183,6 @@ export default function PromptList() {
                 key={prompt.id}
                 sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
               >
-                <TableCell component="th" scope="row">
-                  {prompt.id}
-                </TableCell>
                 <TableCell>{prompt.category}</TableCell>
                 <TableCell
                   sx={{
@@ -194,6 +199,38 @@ export default function PromptList() {
                     label={prompt.active ? 'Active' : 'Inactive'}
                     color={prompt.active ? 'success' : 'default'}
                     size="small"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Chip
+                    icon={<HistoryIcon sx={{ fontSize: 16 }} />}
+                    label={`${prompt.versionCount ?? 0} versions`}
+                    size="small"
+                    variant="outlined"
+                    color="primary"
+                    onClick={() => {
+                      setSelectedPromptId(prompt.id);
+                      setSelectedPromptCurrentVersionId(
+                        (
+                          prompt as Prompt & {
+                            current_version_id?: string | null;
+                          }
+                        ).current_version_id || null,
+                      );
+                      setHistoryDrawerOpen(true);
+                    }}
+                    sx={{
+                      cursor: 'pointer',
+                      fontWeight: 500,
+                      '&:hover': {
+                        bgcolor: 'primary.light',
+                        color: 'primary.main',
+                        borderColor: 'primary.main',
+                        transform: 'translateY(-1px)',
+                        boxShadow: 2,
+                      },
+                      transition: 'all 0.2s ease-in-out',
+                    }}
                   />
                 </TableCell>
                 <TableCell>
@@ -249,6 +286,42 @@ export default function PromptList() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <VersionHistoryDrawer
+        open={historyDrawerOpen}
+        onClose={() => {
+          setHistoryDrawerOpen(false);
+          setSelectedPromptId(null);
+          setSelectedPromptCurrentVersionId(null);
+        }}
+        promptId={selectedPromptId || ''}
+        currentVersionId={selectedPromptCurrentVersionId}
+        onApplyVersion={async (versionId: string) => {
+          if (!selectedPromptId) return;
+          try {
+            await api.post(
+              `/admin-prompt/${selectedPromptId}/versions/${versionId}/apply`,
+            );
+            showSnackbar('Version applied successfully', 'success');
+            // 刷新列表数据
+            fetchPrompts();
+            // 更新当前版本ID
+            const updatedPrompt: Prompt = await api.get(
+              `/admin-prompt/${selectedPromptId}`,
+            );
+            setSelectedPromptCurrentVersionId(
+              updatedPrompt.current_version_id || null,
+            );
+          } catch (err: any) {
+            showSnackbar(
+              err.response?.data?.msg ||
+                err.response?.data?.message ||
+                'Failed to apply version',
+              'error',
+            );
+          }
+        }}
+      />
 
       <Snackbar
         open={snackbar.open}

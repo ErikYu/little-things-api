@@ -71,7 +71,10 @@ export class IconService {
     });
   }
 
-  private async getPrompt(): Promise<string> {
+  private async getPrompt(): Promise<{
+    content: string;
+    versionId: string | null;
+  }> {
     try {
       const dbPrompt = await this.prisma.prompt.findFirst({
         where: {
@@ -84,8 +87,13 @@ export class IconService {
       });
 
       if (dbPrompt) {
-        this.logger.log(`Using prompt from DB: ${dbPrompt.id}`);
-        return dbPrompt.content;
+        this.logger.log(
+          `Using prompt from DB: ${dbPrompt.id}, version: ${dbPrompt.current_version_id || 'none'}`,
+        );
+        return {
+          content: dbPrompt.content,
+          versionId: dbPrompt.current_version_id,
+        };
       }
     } catch (error) {
       this.logger.warn(
@@ -93,18 +101,30 @@ export class IconService {
       );
     }
 
-    return DEFAULT_PROMPT;
+    return {
+      content: DEFAULT_PROMPT,
+      versionId: null,
+    };
   }
 
   async generateIcon(iconId: string, reflection: string) {
     const llm = new OpenAI({
       baseURL: 'https://api.tu-zi.com/v1',
     });
-    const promptTemplate = await this.getPrompt();
-    const _prompt = promptTemplate.replace(
+    const promptData = await this.getPrompt();
+    const _prompt = promptData.content.replace(
       '[INSERT_USER_REFLECTION_HERE]',
       reflection,
     );
+
+    // 记录版本
+    await this.prisma.answerIcon.update({
+      where: { id: iconId },
+      data: {
+        prompt_version_id: promptData.versionId,
+      },
+    });
+
     this.logger.log(`Icon[${iconId}]: Starting to generate icon`);
 
     let response: ImagesResponse;

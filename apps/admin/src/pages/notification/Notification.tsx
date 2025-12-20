@@ -65,7 +65,7 @@ export default function Notification() {
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [body, setBody] = useState('');
-  const [topic, setTopic] = useState('bundleId');
+  const [topic, setTopic] = useState('today_question');
   const [loading, setLoading] = useState(false);
   const [fetchingUsers, setFetchingUsers] = useState(false);
   const [histories, setHistories] = useState<NotificationHistory[]>([]);
@@ -173,7 +173,7 @@ export default function Notification() {
       setTitle('');
       setSubtitle('');
       setBody('');
-      setTopic('bundleId');
+      setTopic('today_question');
       // 刷新历史记录
       fetchHistory();
     } catch (err: any) {
@@ -302,7 +302,6 @@ export default function Notification() {
                   label="Topic"
                   onChange={e => setTopic(e.target.value)}
                 >
-                  <MenuItem value="bundleId">Bundle ID</MenuItem>
                   <MenuItem value="today_question">Today Question</MenuItem>
                 </Select>
               </FormControl>

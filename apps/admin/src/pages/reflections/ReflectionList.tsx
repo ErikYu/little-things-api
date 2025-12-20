@@ -37,6 +37,11 @@ interface Reflection {
     url: string;
     status: string;
     bypass?: boolean;
+    prompt_version?: {
+      id: string;
+      version: number;
+      prompt_id: string;
+    } | null;
   } | null;
   question: {
     id: string;
@@ -284,6 +289,7 @@ export default function ReflectionList() {
               <TableCell>Icon</TableCell>
               <TableCell>Content</TableCell>
               <TableCell>Question</TableCell>
+              <TableCell>Prompt Version</TableCell>
               <TableCell>Created At</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
@@ -389,6 +395,20 @@ export default function ReflectionList() {
                   <Tooltip title={reflection.question.title}>
                     <Typography noWrap>{reflection.question.title}</Typography>
                   </Tooltip>
+                </TableCell>
+                <TableCell>
+                  {reflection.icon?.prompt_version ? (
+                    <Chip
+                      label={`v${reflection.icon.prompt_version.version}`}
+                      size="small"
+                      variant="outlined"
+                      sx={{ fontSize: '0.75rem' }}
+                    />
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      -
+                    </Typography>
+                  )}
                 </TableCell>
                 <TableCell>
                   {new Date(reflection.created_at).toLocaleString()}

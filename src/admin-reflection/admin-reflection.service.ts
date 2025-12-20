@@ -44,6 +44,13 @@ export class AdminReflectionService {
             url: true,
             status: true,
             bypass: true,
+            prompt_version: {
+              select: {
+                id: true,
+                version: true,
+                prompt_id: true,
+              },
+            },
           },
         },
         question: {

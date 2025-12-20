@@ -20,4 +20,3 @@ export interface QueryPromptDto {
   page?: number;
   pageSize?: number;
 }
-

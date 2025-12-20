@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer';
 import api from '../../utils/api';
+import VersionHistoryDrawer, {
+  PromptVersion,
+} from '../../components/VersionHistoryDrawer';
 import {
   Box,
   Button,
@@ -15,27 +19,18 @@ import {
   Link,
   IconButton,
   Snackbar,
-  Drawer,
-  List,
-  ListItem,
-  Divider,
   Chip,
-  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogContentText,
   DialogActions,
-  Grid,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import EditIcon from '@mui/icons-material/Edit';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import HistoryIcon from '@mui/icons-material/History';
 import CloseIcon from '@mui/icons-material/Close';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import PersonIcon from '@mui/icons-material/Person';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 
 interface Prompt {
   id: string;
@@ -45,16 +40,6 @@ interface Prompt {
   created_at: string;
   updated_at: string;
   current_version_id?: string | null;
-}
-
-interface PromptVersion {
-  id: string;
-  prompt_id: string;
-  version: number;
-  content: string;
-  created_by: string | null;
-  created_at: string;
-  change_note: string | null;
 }
 
 export default function PromptDetail() {
@@ -67,10 +52,17 @@ export default function PromptDetail() {
   const [active, setActive] = useState(false);
   const [saving, setSaving] = useState(false);
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
-  const [versions, setVersions] = useState<PromptVersion[]>([]);
-  const [versionsLoading, setVersionsLoading] = useState(false);
   const [diffDialogOpen, setDiffDialogOpen] = useState(false);
-  const [selectedVersion, setSelectedVersion] = useState<PromptVersion | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState<PromptVersion | null>(
+    null,
+  );
+  const [versions, setVersions] = useState<PromptVersion[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [versionToDelete, setVersionToDelete] = useState<PromptVersion | null>(
+    null,
+  );
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [commitMessage, setCommitMessage] = useState('');
 
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -126,9 +118,10 @@ export default function PromptDetail() {
   const fetchVersions = async () => {
     if (isNew || !id) return;
 
-    setVersionsLoading(true);
     try {
-      const data: PromptVersion[] = await api.get(`/admin-prompt/${id}/versions`);
+      const data: PromptVersion[] = await api.get(
+        `/admin-prompt/${id}/versions`,
+      );
       setVersions(data);
     } catch (err: any) {
       showSnackbar(
@@ -137,8 +130,6 @@ export default function PromptDetail() {
           'Failed to fetch version history',
         'error',
       );
-    } finally {
-      setVersionsLoading(false);
     }
   };
 
@@ -153,28 +144,56 @@ export default function PromptDetail() {
     setHistoryDrawerOpen(false);
   };
 
-  const handleSave = async () => {
+  const handleApplyVersion = async (versionId: string) => {
+    if (!id || !prompt) return;
+
+    try {
+      await api.post(`/admin-prompt/${id}/versions/${versionId}/apply`);
+      showSnackbar('Version applied successfully', 'success');
+      // 刷新 prompt 和版本列表
+      const updatedPrompt: Prompt = await api.get(`/admin-prompt/${id}`);
+      setPrompt(updatedPrompt);
+      setContent(updatedPrompt.content);
+      setActive(updatedPrompt.active);
+      // 刷新版本列表
+      await fetchVersions();
+    } catch (err: any) {
+      showSnackbar(
+        err.response?.data?.msg ||
+          err.response?.data?.message ||
+          'Failed to apply version',
+        'error',
+      );
+    }
+  };
+
+  const handleSaveWithoutMessage = async () => {
     setSaving(true);
     try {
       if (isNew) {
-        await api.post('/admin-prompt', {
+        const newPrompt: Prompt = await api.post('/admin-prompt', {
           category: 'ICON_GENERATION',
           content,
           active,
         });
+        showSnackbar('Prompt saved successfully', 'success');
+        // 跳转到新创建的 prompt 详情页
+        navigate(`/prompts/${newPrompt.id}`);
       } else {
+        // 创建版本，但 change_note 为 null
         await api.put(`/admin-prompt/${id}`, {
           content,
           active,
+          change_note: null, // 不保存 change_note
         });
+        showSnackbar('Prompt saved successfully', 'success');
+        // 刷新 prompt 数据并退出编辑状态
+        const updatedPrompt: Prompt = await api.get(`/admin-prompt/${id}`);
+        setPrompt(updatedPrompt);
+        setContent(updatedPrompt.content);
+        setActive(updatedPrompt.active);
+        setIsEditing(false);
       }
-      showSnackbar('Prompt saved successfully', 'success');
-      // 给一点时间显示 success 消息，或者直接跳转
-      // 这里的 UX 可能会有点问题，如果立即跳转，snackbar 会消失。
-      // 但现在我们只关注 "报错"。
-      setTimeout(() => {
-        navigate('/prompts');
-      }, 500);
     } catch (err: any) {
       showSnackbar(
         err.response?.data?.msg ||
@@ -184,6 +203,77 @@ export default function PromptDetail() {
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSave = () => {
+    if (isNew) {
+      // 新建时直接保存，不需要 dialog
+      handleSaveWithoutMessage();
+    } else {
+      // 编辑时显示 commit message dialog
+      setSaveDialogOpen(true);
+    }
+  };
+
+  const handleSaveWithMessage = async () => {
+    if (!id) return;
+
+    setSaving(true);
+    try {
+      await api.put(`/admin-prompt/${id}`, {
+        content,
+        active,
+        change_note: commitMessage || null, // 使用用户输入的 commit message
+      });
+      showSnackbar('Prompt saved successfully', 'success');
+      setSaveDialogOpen(false);
+      setCommitMessage('');
+      // 刷新 prompt 数据并退出编辑状态
+      const updatedPrompt: Prompt = await api.get(`/admin-prompt/${id}`);
+      setPrompt(updatedPrompt);
+      setContent(updatedPrompt.content);
+      setActive(updatedPrompt.active);
+      setIsEditing(false);
+    } catch (err: any) {
+      showSnackbar(
+        err.response?.data?.msg ||
+          err.response?.data?.message ||
+          'Failed to save',
+        'error',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteVersion = (version: PromptVersion) => {
+    setVersionToDelete(version);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!id || !versionToDelete) return;
+
+    try {
+      await api.delete(`/admin-prompt/${id}/versions/${versionToDelete.id}`);
+      showSnackbar('Version deleted successfully', 'success');
+      // 刷新 prompt 和版本列表
+      const updatedPrompt: Prompt = await api.get(`/admin-prompt/${id}`);
+      setPrompt(updatedPrompt);
+      setContent(updatedPrompt.content);
+      setActive(updatedPrompt.active);
+      // 刷新版本列表
+      await fetchVersions();
+      setDeleteDialogOpen(false);
+      setVersionToDelete(null);
+    } catch (err: any) {
+      showSnackbar(
+        err.response?.data?.msg ||
+          err.response?.data?.message ||
+          'Failed to delete version',
+        'error',
+      );
     }
   };
 
@@ -291,6 +381,16 @@ export default function PromptDetail() {
                 >
                   {saving ? 'Saving...' : 'Save'}
                 </Button>
+                {!isNew && (
+                  <Button
+                    variant="outlined"
+                    onClick={handleSaveWithoutMessage}
+                    disabled={saving}
+                    startIcon={<SaveIcon />}
+                  >
+                    {saving ? 'Saving...' : 'Save without message'}
+                  </Button>
+                )}
                 {!isNew && prompt && (
                   <Button
                     variant="outlined"
@@ -317,310 +417,38 @@ export default function PromptDetail() {
         </Stack>
       </Paper>
 
-      <Drawer
-        anchor="right"
+      <VersionHistoryDrawer
         open={historyDrawerOpen}
         onClose={handleCloseHistory}
-        PaperProps={{
-          sx: {
-            width: { xs: '100%', sm: 700, md: 800 },
-            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          },
+        promptId={id || ''}
+        currentVersionId={prompt?.current_version_id}
+        onApplyVersion={async (versionId: string) => {
+          if (!id) return;
+          try {
+            await api.post(`/admin-prompt/${id}/versions/${versionId}/apply`);
+            showSnackbar('Version applied successfully', 'success');
+            // 刷新 prompt 数据
+            const updatedPrompt: Prompt = await api.get(`/admin-prompt/${id}`);
+            setPrompt(updatedPrompt);
+            setContent(updatedPrompt.content);
+            setActive(updatedPrompt.active);
+            // 刷新版本列表
+            fetchVersions();
+          } catch (err: any) {
+            showSnackbar(
+              err.response?.data?.msg ||
+                err.response?.data?.message ||
+                'Failed to apply version',
+              'error',
+            );
+          }
         }}
-      >
-        <Box
-          sx={{
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            bgcolor: 'background.default',
-          }}
-        >
-          {/* Header */}
-          <Box
-            sx={{
-              p: 3,
-              borderBottom: 1,
-              borderColor: 'divider',
-              bgcolor: 'background.paper',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <HistoryIcon color="primary" />
-              <Typography variant="h6" fontWeight={600}>
-                Version History
-              </Typography>
-              {versions.length > 0 && (
-                <Chip
-                  label={versions.length}
-                  size="small"
-                  color="primary"
-                  variant="outlined"
-                />
-              )}
-            </Box>
-            <IconButton
-              onClick={handleCloseHistory}
-              aria-label="close"
-              sx={{
-                '&:hover': {
-                  bgcolor: 'action.hover',
-                },
-              }}
-            >
-              <CloseIcon />
-            </IconButton>
-          </Box>
-
-          {/* Content */}
-          <Box
-            sx={{
-              flex: 1,
-              overflow: 'auto',
-              p: 3,
-            }}
-          >
-            {versionsLoading ? (
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 300,
-                  gap: 2,
-                }}
-              >
-                <CircularProgress />
-                <Typography variant="body2" color="text.secondary">
-                  Loading versions...
-                </Typography>
-              </Box>
-            ) : versions.length === 0 ? (
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 300,
-                  gap: 2,
-                }}
-              >
-                <HistoryIcon sx={{ fontSize: 64, color: 'text.disabled' }} />
-                <Typography variant="h6" color="text.secondary">
-                  No version history
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Version history will appear here when you make changes
-                </Typography>
-              </Box>
-            ) : (
-              <Stack spacing={2}>
-                {versions.map((version, index) => {
-                  const isCurrentVersion =
-                    prompt?.current_version_id === version.id;
-                  return (
-                    <Paper
-                      key={version.id}
-                      elevation={isCurrentVersion ? 4 : 1}
-                      sx={{
-                        p: 1.5,
-                        border: isCurrentVersion
-                          ? '2px solid'
-                          : '1px solid',
-                        borderColor: isCurrentVersion
-                          ? 'primary.main'
-                          : 'divider',
-                        borderRadius: 2,
-                        bgcolor: isCurrentVersion
-                          ? 'primary.50'
-                          : 'background.paper',
-                        transition: 'all 0.2s ease-in-out',
-                        '&:hover': {
-                          boxShadow: 4,
-                        },
-                      }}
-                    >
-                      {/* Version Header */}
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          justifyContent: 'space-between',
-                          mb: 1,
-                          gap: 2,
-                        }}
-                      >
-                        <Box sx={{ flex: 1 }}>
-                          <Box
-                            sx={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 1.5,
-                              mb: 0.5,
-                            }}
-                          >
-                            <Chip
-                              label={`v${version.version}`}
-                              size="small"
-                              color={isCurrentVersion ? 'primary' : 'default'}
-                              sx={{
-                                fontWeight: 600,
-                                fontSize: '0.75rem',
-                              }}
-                            />
-                            {isCurrentVersion && (
-                              <Chip
-                                icon={<CheckCircleIcon />}
-                                label="Current"
-                                size="small"
-                                color="success"
-                                variant="outlined"
-                                sx={{ fontSize: '0.7rem' }}
-                              />
-                            )}
-                          </Box>
-                          {version.change_note &&
-                            version.change_note !== 'Initial version' && (
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  color: 'text.primary',
-                                  fontWeight: 500,
-                                  mb: 0.5,
-                                }}
-                              >
-                                {version.change_note}
-                              </Typography>
-                            )}
-                        </Box>
-                      </Box>
-
-                      {/* Metadata */}
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          mb: 1,
-                          flexWrap: 'wrap',
-                          gap: 1,
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 2,
-                            flexWrap: 'wrap',
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5,
-                              color: 'text.secondary',
-                            }}
-                          >
-                            <AccessTimeIcon sx={{ fontSize: 16 }} />
-                            <Typography variant="caption">
-                              {new Date(version.created_at).toLocaleString('en-US', {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </Typography>
-                          </Box>
-                          {version.created_by && (
-                            <Box
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 0.5,
-                                color: 'text.secondary',
-                              }}
-                            >
-                              <PersonIcon sx={{ fontSize: 16 }} />
-                              <Typography variant="caption">
-                                {version.created_by}
-                              </Typography>
-                            </Box>
-                          )}
-                        </Box>
-                        {!isCurrentVersion && (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<CompareArrowsIcon />}
-                            onClick={() => {
-                              setSelectedVersion(version);
-                              setDiffDialogOpen(true);
-                            }}
-                            sx={{ textTransform: 'none' }}
-                          >
-                            Diff
-                          </Button>
-                        )}
-                      </Box>
-
-                      {/* Content */}
-                      <Paper
-                        elevation={0}
-                        sx={{
-                          p: 1.5,
-                          bgcolor: '#1e1e1e',
-                          borderRadius: 1,
-                          border: '1px solid',
-                          borderColor: 'rgba(255, 255, 255, 0.1)',
-                          maxHeight: 400,
-                          overflow: 'auto',
-                          '&::-webkit-scrollbar': {
-                            width: '8px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            bgcolor: '#2d2d2d',
-                            borderRadius: 1,
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            bgcolor: '#555',
-                            borderRadius: 1,
-                            '&:hover': {
-                              bgcolor: '#666',
-                            },
-                          },
-                        }}
-                      >
-                        <Typography
-                          variant="body2"
-                          component="pre"
-                          sx={{
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
-                            fontFamily: 'monospace',
-                            fontSize: '0.8125rem',
-                            lineHeight: 1.6,
-                            m: 0,
-                            color: '#d4d4d4',
-                          }}
-                        >
-                          {version.content}
-                        </Typography>
-                      </Paper>
-                    </Paper>
-                  );
-                })}
-              </Stack>
-            )}
-          </Box>
-        </Box>
-      </Drawer>
+        onDeleteVersion={handleDeleteVersion}
+        onDiffVersion={version => {
+          setSelectedVersion(version);
+          setDiffDialogOpen(true);
+        }}
+      />
 
       {/* Diff Dialog */}
       <Dialog
@@ -643,7 +471,27 @@ export default function PromptDetail() {
               justifyContent: 'space-between',
             }}
           >
-            <Typography variant="h6">Version Comparison</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography variant="h6">Version Comparison</Typography>
+              {selectedVersion && prompt && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Chip
+                    label={`v${selectedVersion.version}`}
+                    size="small"
+                    sx={{ fontWeight: 600 }}
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    vs
+                  </Typography>
+                  <Chip
+                    label={`v${versions.find(v => v.id === prompt.current_version_id)?.version || 'Current'}`}
+                    size="small"
+                    color="primary"
+                    sx={{ fontWeight: 600 }}
+                  />
+                </Box>
+              )}
+            </Box>
             <IconButton
               onClick={() => setDiffDialogOpen(false)}
               aria-label="close"
@@ -652,127 +500,162 @@ export default function PromptDetail() {
             </IconButton>
           </Box>
         </DialogTitle>
-        <DialogContent dividers>
+        <DialogContent dividers sx={{ p: 0, height: 'calc(70vh)' }}>
           {selectedVersion && prompt && (
-            <Grid container spacing={2} sx={{ height: '100%' }}>
-              {/* Current Version */}
-              <Grid item xs={12} md={6}>
-                <Box sx={{ mb: 1 }}>
-                  <Chip
-                    label={`v${versions.find(v => v.id === prompt.current_version_id)?.version || 'Current'}`}
-                    size="small"
-                    color="primary"
-                    sx={{ fontWeight: 600, mr: 1 }}
-                  />
-                  <Typography variant="subtitle2" component="span" color="text.secondary">
-                    Current Version
-                  </Typography>
-                </Box>
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 1.5,
-                    bgcolor: '#1e1e1e',
-                    borderRadius: 1,
-                    border: '1px solid',
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
-                    height: 'calc(70vh - 120px)',
-                    overflow: 'auto',
-                    '&::-webkit-scrollbar': {
-                      width: '8px',
-                    },
-                    '&::-webkit-scrollbar-track': {
-                      bgcolor: '#2d2d2d',
-                      borderRadius: 1,
-                    },
-                    '&::-webkit-scrollbar-thumb': {
-                      bgcolor: '#555',
-                      borderRadius: 1,
-                      '&:hover': {
-                        bgcolor: '#666',
-                      },
-                    },
-                  }}
-                >
-                  <Typography
-                    variant="body2"
-                    component="pre"
-                    sx={{
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      fontFamily: 'monospace',
-                      fontSize: '0.8125rem',
-                      lineHeight: 1.6,
-                      m: 0,
-                      color: '#d4d4d4',
-                    }}
-                  >
-                    {prompt.content}
-                  </Typography>
-                </Paper>
-              </Grid>
-
-              {/* Selected Version */}
-              <Grid item xs={12} md={6}>
-                <Box sx={{ mb: 1 }}>
-                  <Chip
-                    label={`v${selectedVersion.version}`}
-                    size="small"
-                    color="default"
-                    sx={{ fontWeight: 600, mr: 1 }}
-                  />
-                  <Typography variant="subtitle2" component="span" color="text.secondary">
-                    Selected Version
-                  </Typography>
-                </Box>
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 1.5,
-                    bgcolor: '#1e1e1e',
-                    borderRadius: 1,
-                    border: '1px solid',
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
-                    height: 'calc(70vh - 120px)',
-                    overflow: 'auto',
-                    '&::-webkit-scrollbar': {
-                      width: '8px',
-                    },
-                    '&::-webkit-scrollbar-track': {
-                      bgcolor: '#2d2d2d',
-                      borderRadius: 1,
-                    },
-                    '&::-webkit-scrollbar-thumb': {
-                      bgcolor: '#555',
-                      borderRadius: 1,
-                      '&:hover': {
-                        bgcolor: '#666',
-                      },
-                    },
-                  }}
-                >
-                  <Typography
-                    variant="body2"
-                    component="pre"
-                    sx={{
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      fontFamily: 'monospace',
-                      fontSize: '0.8125rem',
-                      lineHeight: 1.6,
-                      m: 0,
-                      color: '#d4d4d4',
-                    }}
-                  >
-                    {selectedVersion.content}
-                  </Typography>
-                </Paper>
-              </Grid>
-            </Grid>
+            <ReactDiffViewer
+              oldValue={selectedVersion.content}
+              newValue={prompt.content}
+              splitView={true}
+              leftTitle={`v${selectedVersion.version}`}
+              rightTitle={`v${versions.find(v => v.id === prompt.current_version_id)?.version || 'Current'} (Current)`}
+              useDarkTheme={true}
+              disableWordDiff={false}
+              compareMethod={DiffMethod.LINES}
+              showDiffOnly={false}
+              hideLineNumbers={false}
+              extraLinesSurroundingDiff={3}
+              styles={{
+                variables: {
+                  dark: {
+                    codeFoldGutterBackground: '#1e1e1e',
+                    codeFoldBackground: '#1e1e1e',
+                    addedBackground: '#0e4429',
+                    addedColor: '#4ade80',
+                    removedBackground: '#5a1a1a',
+                    removedColor: '#f87171',
+                    // 词级别差异高亮 - 更明显的颜色
+                    wordAddedBackground: '#22c55e',
+                    wordRemovedBackground: '#ef4444',
+                    addedGutterBackground: '#0e4429',
+                    removedGutterBackground: '#5a1a1a',
+                    gutterBackground: '#1e1e1e',
+                    gutterBackgroundDark: '#1e1e1e',
+                    highlightBackground: '#2d2d2d',
+                    highlightGutterBackground: '#2d2d2d',
+                  },
+                },
+                contentText: {
+                  fontFamily: 'monospace',
+                  fontSize: '0.8125rem',
+                  lineHeight: 1.6,
+                },
+                gutter: {
+                  color: '#888',
+                  background: '#1e1e1e',
+                },
+                line: {
+                  '&:hover': {
+                    background: '#2d2d2d',
+                  },
+                },
+                // 词级别差异样式 - 增强可见性
+                wordAdded: {
+                  backgroundColor: '#22c55e',
+                  color: '#ffffff',
+                  padding: '2px 4px',
+                  borderRadius: '2px',
+                  fontWeight: 500,
+                },
+                wordRemoved: {
+                  backgroundColor: '#ef4444',
+                  color: '#ffffff',
+                  padding: '2px 4px',
+                  borderRadius: '2px',
+                  textDecoration: 'line-through',
+                  fontWeight: 500,
+                },
+              }}
+            />
           )}
         </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setVersionToDelete(null);
+        }}
+      >
+        <DialogTitle>Delete Version</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete version{' '}
+            <strong>v{versionToDelete?.version}</strong>?
+            {versionToDelete?.id === prompt?.current_version_id && (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                This is the current version. After deletion, another version
+                will be set as current, or the prompt will have no current
+                version if this is the only version.
+              </Alert>
+            )}
+          </DialogContentText>
+        </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDiffDialogOpen(false)}>Close</Button>
+          <Button
+            onClick={() => {
+              setDeleteDialogOpen(false);
+              setVersionToDelete(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmDelete}
+            color="error"
+            variant="contained"
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Save with Commit Message Dialog */}
+      <Dialog
+        open={saveDialogOpen}
+        onClose={() => {
+          setSaveDialogOpen(false);
+          setCommitMessage('');
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Save with Commit Message</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Enter a commit message for this version change. This message will be
+            displayed in the version history.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Commit Message"
+            fullWidth
+            multiline
+            rows={4}
+            variant="outlined"
+            value={commitMessage}
+            onChange={e => setCommitMessage(e.target.value)}
+            placeholder="e.g., Optimized prompt for better icon generation"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setSaveDialogOpen(false);
+              setCommitMessage('');
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveWithMessage}
+            variant="contained"
+            disabled={saving}
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </Button>
         </DialogActions>
       </Dialog>
 

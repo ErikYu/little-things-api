@@ -27,11 +27,11 @@ export class AdminPromptService {
     return await this.prisma.$transaction(async tx => {
       // 1. 创建 prompt
       const prompt = await tx.prompt.create({
-        data: {
-          category: createDto.category,
-          content: createDto.content,
-          active: createDto.active,
-        },
+      data: {
+        category: createDto.category,
+        content: createDto.content,
+        active: createDto.active,
+      },
       });
 
       // 2. 创建初始版本（version 1）
@@ -120,15 +120,15 @@ export class AdminPromptService {
       });
     } else {
       // 如果内容没有变化，只更新 active 状态
-      return await this.prisma.prompt.update({
-        where: { id },
-        data: {
-          ...(updateDto.active !== undefined && { active: updateDto.active }),
-        },
+    return await this.prisma.prompt.update({
+      where: { id },
+      data: {
+        ...(updateDto.active !== undefined && { active: updateDto.active }),
+      },
         include: {
           current_version: true,
         },
-      });
+    });
     }
   }
 
@@ -190,10 +190,24 @@ export class AdminPromptService {
       orderBy: {
         created_at: 'desc',
       },
+      include: {
+        _count: {
+          select: {
+            versions: true,
+          },
+        },
+      },
     });
 
+    // 格式化数据，添加版本数量
+    const promptsWithVersionCount = prompts.map(prompt => ({
+      ...prompt,
+      versionCount: prompt._count.versions,
+      current_version_id: prompt.current_version_id,
+    }));
+
     return {
-      data: prompts,
+      data: promptsWithVersionCount,
       total,
       page: pageNum,
       pageSize: pageSizeNum,
@@ -249,5 +263,139 @@ export class AdminPromptService {
     });
 
     return versions;
+  }
+
+  async applyVersion(promptId: string, versionId: string) {
+    // 检查 prompt 是否存在
+    const prompt = await this.prisma.prompt.findFirst({
+      where: {
+        id: promptId,
+        deleted_at: null,
+      },
+    });
+
+    if (!prompt) {
+      throw new NotFoundException('Prompt not found');
+    }
+
+    // 检查版本是否存在
+    const version = await this.prisma.promptVersion.findFirst({
+      where: {
+        id: versionId,
+        prompt_id: promptId,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException('Version not found');
+    }
+
+    // 如果版本内容与当前内容相同，不需要更新
+    if (version.content === prompt.content) {
+      throw new BadRequestException(
+        'Version content is the same as current content',
+      );
+    }
+
+    // 验证内容（如果是 ICON_GENERATION 类型）
+    if (
+      prompt.category === PromptCategory.ICON_GENERATION &&
+      !version.content.includes(PLACEHOLDER)
+    ) {
+      throw new BadRequestException(
+        `Version content must contain placeholder: ${PLACEHOLDER}`,
+      );
+    }
+
+    // 直接回退到旧版本，不创建新版本记录
+    return await this.prisma.prompt.update({
+      where: { id: promptId },
+      data: {
+        content: version.content,
+        current_version_id: versionId,
+      },
+      include: {
+        current_version: true,
+      },
+    });
+  }
+
+  async deleteVersion(promptId: string, versionId: string) {
+    // 检查 prompt 是否存在
+    const prompt = await this.prisma.prompt.findFirst({
+      where: {
+        id: promptId,
+        deleted_at: null,
+      },
+    });
+
+    if (!prompt) {
+      throw new NotFoundException('Prompt not found');
+    }
+
+    // 检查版本是否存在
+    const version = await this.prisma.promptVersion.findFirst({
+      where: {
+        id: versionId,
+        prompt_id: promptId,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException('Version not found');
+    }
+
+    // 如果删除的是当前版本，需要处理
+    if (prompt.current_version_id === versionId) {
+      // 找到其他版本作为新的当前版本
+      const otherVersion = await this.prisma.promptVersion.findFirst({
+        where: {
+          prompt_id: promptId,
+          id: { not: versionId },
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+      });
+
+      // 使用事务删除版本并更新当前版本
+      return await this.prisma.$transaction(async tx => {
+        // 删除版本
+        await tx.promptVersion.delete({
+          where: { id: versionId },
+        });
+
+        // 如果有其他版本，更新当前版本关联和内容
+        if (otherVersion) {
+          return await tx.prompt.update({
+            where: { id: promptId },
+            data: {
+              current_version_id: otherVersion.id,
+              content: otherVersion.content,
+            },
+            include: {
+              current_version: true,
+            },
+          });
+        } else {
+          // 如果没有其他版本，清空当前版本关联
+          return await tx.prompt.update({
+            where: { id: promptId },
+            data: {
+              current_version_id: null,
+            },
+            include: {
+              current_version: true,
+            },
+          });
+        }
+      });
+    } else {
+      // 如果不是当前版本，直接删除
+      await this.prisma.promptVersion.delete({
+        where: { id: versionId },
+      });
+      return { success: true };
+    }
   }
 }

@@ -2,16 +2,28 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, PromptCategory } from '@prisma/client';
-import type { CreatePromptDto, UpdatePromptDto, QueryPromptDto } from './dto';
+import type {
+  CreatePromptDto,
+  UpdatePromptDto,
+  QueryPromptDto,
+  CreatePromptTestDto,
+} from './dto';
+import { IconService } from '../onboard/icon.service';
 
 const PLACEHOLDER = '[INSERT_USER_REFLECTION_HERE]';
 
 @Injectable()
 export class AdminPromptService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(AdminPromptService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly iconService: IconService,
+  ) {}
 
   async create(createDto: CreatePromptDto) {
     if (
@@ -27,11 +39,11 @@ export class AdminPromptService {
     return await this.prisma.$transaction(async tx => {
       // 1. 创建 prompt
       const prompt = await tx.prompt.create({
-      data: {
-        category: createDto.category,
-        content: createDto.content,
-        active: createDto.active,
-      },
+        data: {
+          category: createDto.category,
+          content: createDto.content,
+          active: createDto.active,
+        },
       });
 
       // 2. 创建初始版本（version 1）
@@ -120,15 +132,15 @@ export class AdminPromptService {
       });
     } else {
       // 如果内容没有变化，只更新 active 状态
-    return await this.prisma.prompt.update({
-      where: { id },
-      data: {
-        ...(updateDto.active !== undefined && { active: updateDto.active }),
-      },
+      return await this.prisma.prompt.update({
+        where: { id },
+        data: {
+          ...(updateDto.active !== undefined && { active: updateDto.active }),
+        },
         include: {
           current_version: true,
         },
-    });
+      });
     }
   }
 
@@ -397,5 +409,77 @@ export class AdminPromptService {
       });
       return { success: true };
     }
+  }
+
+  async createTest(
+    promptId: string,
+    versionId: string,
+    createDto: CreatePromptTestDto,
+  ) {
+    // 1. 验证 prompt 和 version 存在且匹配
+    const prompt = await this.prisma.prompt.findFirst({
+      where: {
+        id: promptId,
+        deleted_at: null,
+      },
+    });
+
+    if (!prompt) {
+      throw new NotFoundException('Prompt not found');
+    }
+
+    const version = await this.prisma.promptVersion.findFirst({
+      where: {
+        id: versionId,
+        prompt_id: promptId,
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException('Version not found');
+    }
+
+    // 2. 验证 test_input 不为空
+    if (!createDto.test_input || createDto.test_input.trim() === '') {
+      throw new BadRequestException('test_input is required');
+    }
+
+    // 3. 创建测试记录
+    const testIcon = await this.prisma.promptTestIcon.create({
+      data: {
+        prompt_version_id: versionId,
+        test_input: createDto.test_input.trim(),
+        status: 'PENDING',
+        url: '',
+        test_note: createDto.test_note || null,
+      },
+    });
+
+    // 4. 异步触发icon生成
+    this.iconService
+      .generateTestIcon(
+        testIcon.id,
+        createDto.test_input.trim(),
+        version.content,
+      )
+      .then(() => {
+        this.logger.log(`Test icon generation completed: ${testIcon.id}`);
+      })
+      .catch(err => {
+        this.logger.error(
+          `Failed to generate test icon ${testIcon.id}: ${err.message}`,
+        );
+      });
+
+    return {
+      success: true,
+      message: 'Test started',
+      data: {
+        id: testIcon.id,
+        status: testIcon.status,
+        test_input: testIcon.test_input,
+        created_at: testIcon.created_at,
+      },
+    };
   }
 }

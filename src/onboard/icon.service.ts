@@ -17,6 +17,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PromptCategory } from '@prisma/client';
 import { ImagesResponse } from 'openai/resources/images';
+import { ApnService } from './apn.service';
 
 const DEFAULT_PROMPT = `The Single-Layer System Prompt
 Task: Create a cute, minimalist single vector icon based on the following user text: "[INSERT_USER_REFLECTION_HERE]"
@@ -53,6 +54,7 @@ export class IconService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly apnService: ApnService,
   ) {
     // 初始化OSS客户端
     const region = this.configService.get<string>('OSS_REGION') || '';
@@ -107,7 +109,7 @@ export class IconService {
     };
   }
 
-  async generateIcon(iconId: string, reflection: string) {
+  async generateIcon(iconId: string, reflection: string, sendApn = false) {
     const llm = new OpenAI({
       baseURL: 'https://api.tu-zi.com/v1',
     });
@@ -191,6 +193,36 @@ export class IconService {
           status: 'GENERATED',
           url: ossUrl,
         });
+
+        // 发送apn
+        if (sendApn) {
+          try {
+            const icon = await this.prisma.answerIcon.findUnique({
+              where: { id: iconId },
+              include: {
+                answer: {
+                  select: { user_id: true },
+                },
+              },
+            });
+
+            if (icon?.answer?.user_id) {
+              await this.apnService.sendNotificationToUser(
+                icon.answer.user_id,
+                {
+                  title: 'Ta-da! Your icon is ready.',
+                  body: 'Take a moment to see what your reflections have grown into.',
+                },
+              );
+            }
+          } catch (apnError) {
+            // 推送失败不应该影响主流程，只记录日志
+            this.logger.warn(
+              `Failed to send APN notification for icon ${iconId}`,
+              apnError instanceof Error ? apnError.stack : undefined,
+            );
+          }
+        }
       } catch (error: unknown) {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error';
@@ -222,6 +254,106 @@ export class IconService {
         iconId: iconId,
         status: 'FAILED',
         url: '',
+      });
+    }
+
+    return response;
+  }
+
+  async generateTestIcon(
+    testIconId: string,
+    testInput: string,
+    promptContent: string,
+  ) {
+    const llm = new OpenAI({
+      baseURL: 'https://api.tu-zi.com/v1',
+    });
+    const _prompt = promptContent.replace(
+      '[INSERT_USER_REFLECTION_HERE]',
+      testInput,
+    );
+
+    this.logger.log(`TestIcon[${testIconId}]: Starting to generate icon`);
+
+    let response: ImagesResponse;
+    try {
+      response = await llm.images.generate({
+        model: 'gpt-image-1',
+        prompt: _prompt,
+        size: '1024x1024',
+        background: 'transparent',
+        quality: 'low',
+        output_format: 'webp',
+        response_format: 'b64_json',
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      await this.prisma.promptTestIcon.update({
+        where: { id: testIconId },
+        data: {
+          status: 'FAILED',
+          error: errorMessage,
+        },
+      });
+
+      throw new Error('Call error: Failed to generate');
+    }
+
+    if (
+      response &&
+      response.data &&
+      response.data.length > 0 &&
+      response.data[0].b64_json
+    ) {
+      this.logger.log(`TestIcon[${testIconId}]: Generated icon successfully`);
+      const b64_json = response.data[0].b64_json;
+
+      try {
+        // 将base64转换为Buffer
+        const buffer = Buffer.from(b64_json, 'base64');
+
+        // 生成OSS文件路径
+        const fileName = `test-icons/${testIconId}-${Date.now()}.webp`;
+
+        // 上传到OSS
+        const ossResult = await this.ossClient.put(fileName, buffer);
+
+        const ossName = ossResult.name;
+        this.logger.log(
+          `TestIcon[${testIconId}]: Uploaded icon to OSS: ${ossName}`,
+        );
+
+        // 保存OSS URL到数据库
+        await this.prisma.promptTestIcon.update({
+          where: { id: testIconId },
+          data: {
+            status: 'GENERATED',
+            url: ossName,
+          },
+        });
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        this.logger.error(
+          `Failed to upload test icon to OSS: ${errorMessage}`,
+          errorStack,
+        );
+        await this.prisma.promptTestIcon.update({
+          where: { id: testIconId },
+          data: {
+            status: 'FAILED',
+            error: errorMessage,
+          },
+        });
+      }
+    } else {
+      await this.prisma.promptTestIcon.update({
+        where: { id: testIconId },
+        data: {
+          status: 'FAILED',
+          error: 'No image data returned from API',
+        },
       });
     }
 

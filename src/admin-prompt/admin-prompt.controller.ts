@@ -13,7 +13,12 @@ import {
 } from '@nestjs/common';
 import { AdminPromptService } from './admin-prompt.service';
 import { AdminAuthGuard } from '../admin-auth/admin-auth.guard';
-import type { CreatePromptDto, UpdatePromptDto, QueryPromptDto } from './dto';
+import type {
+  CreatePromptDto,
+  UpdatePromptDto,
+  QueryPromptDto,
+  CreatePromptTestDto,
+} from './dto';
 
 @Controller('admin-prompt')
 @UseGuards(AdminAuthGuard)
@@ -135,6 +140,25 @@ export class AdminPromptController {
       }
       throw new HttpException(
         `Delete failed: ${(error as Error).message}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post(':id/versions/:versionId/tests')
+  async createTest(
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+    @Body() createDto: CreatePromptTestDto,
+  ) {
+    try {
+      return await this.adminPromptService.createTest(id, versionId, createDto);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        `Create test failed: ${(error as Error).message}`,
         HttpStatus.BAD_REQUEST,
       );
     }

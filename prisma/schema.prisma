@@ -101,6 +101,12 @@ enum AnswerIconStatus {
   FAILED
 }
 
+enum PromptTestIconStatus {
+  PENDING
+  GENERATED
+  FAILED
+}
+
 model AnswerIcon {
   id                String           @id @default(cuid())
   answer_id         String           @unique
@@ -148,9 +154,10 @@ model PromptVersion {
   created_at  DateTime @default(now())
   change_note String?
 
-  prompt        Prompt       @relation(fields: [prompt_id], references: [id], onDelete: Cascade)
-  currentPrompt Prompt?      @relation("CurrentVersion")
+  prompt        Prompt           @relation(fields: [prompt_id], references: [id], onDelete: Cascade)
+  currentPrompt Prompt?          @relation("CurrentVersion")
   answer_icons  AnswerIcon[]
+  test_icons    PromptTestIcon[]
 
   @@unique([prompt_id, version])
   @@index([prompt_id])
@@ -162,6 +169,25 @@ enum APNHistoryStatus {
   PENDING
   SENT
   FAILED
+}
+
+model PromptTestIcon {
+  id                String               @id @default(cuid())
+  prompt_version_id String
+  test_input        String
+  url               String
+  status            PromptTestIconStatus @default(PENDING)
+  created_at        DateTime             @default(now())
+  updated_at        DateTime             @updatedAt
+  error             String?
+  created_by        String?
+  test_note         String?
+
+  prompt_version PromptVersion @relation(fields: [prompt_version_id], references: [id], onDelete: Cascade)
+
+  @@index([prompt_version_id])
+  @@index([prompt_version_id, status])
+  @@map("prompt_test_icons")
 }
 
 model APNHistory {

@@ -94,7 +94,11 @@ export class IconRetryScheduler implements OnModuleInit {
           );
 
           try {
-            await this.iconService.generateIcon(icon.id, icon.answer.content);
+            await this.iconService.generateIcon(
+              icon.id,
+              icon.answer.content,
+              true,
+            );
           } finally {
             // 生成完成后（无论成功或失败）移除重试标记
             this.retryingIconIds.delete(icon.id);

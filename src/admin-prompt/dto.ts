@@ -20,3 +20,8 @@ export interface QueryPromptDto {
   page?: number;
   pageSize?: number;
 }
+
+export interface CreatePromptTestDto {
+  test_input: string; // 测试用的reflection文本
+  test_note?: string; // 可选的测试备注
+}

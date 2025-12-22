@@ -303,7 +303,7 @@ export class OnboardService {
     if (answer && answer.icon && answer.icon.id) {
       // 创建回答之后，调用llm创建一个icon
       this.iconService
-        .generateIcon(answer.icon.id, answer.content)
+        .generateIcon(answer.icon.id, answer.content, true)
         .then(() => {})
         .catch(err => {
           this.logger.error(err);

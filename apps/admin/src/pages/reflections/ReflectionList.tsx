@@ -18,10 +18,14 @@ import {
   Tooltip,
   Button,
   CircularProgress,
+  Autocomplete,
+  TextField,
+  IconButton,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
 import BlockIcon from '@mui/icons-material/Block';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 
 interface Reflection {
   id: string;
@@ -57,6 +61,12 @@ interface ReflectionListResponse {
   totalPages: number;
 }
 
+interface User {
+  id: string;
+  email: string | null;
+  apple_id: string | null;
+}
+
 export default function ReflectionList() {
   const [reflections, setReflections] = useState<Reflection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +74,8 @@ export default function ReflectionList() {
   const [pageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -91,6 +103,21 @@ export default function ReflectionList() {
     setSnackbar({ open: true, message, severity });
   };
 
+  const fetchUsers = async () => {
+    try {
+      const response: { data: User[] } = await api.get('/admin-user', {
+        params: {
+          page: 1,
+          pageSize: 1000, // 获取所有用户用于过滤
+        },
+      });
+      setUsers(response.data);
+    } catch (err: unknown) {
+      // 静默失败，不影响主流程
+      console.error('Failed to fetch users:', err);
+    }
+  };
+
   const fetchReflections = async () => {
     setLoading(true);
     try {
@@ -100,16 +127,20 @@ export default function ReflectionList() {
           params: {
             page,
             pageSize,
+            ...(selectedUser && { userId: selectedUser.id }),
           },
         },
       );
       setReflections(response.data);
       setTotal(response.total);
       setTotalPages(response.totalPages);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as {
+        response?: { data?: { msg?: string; message?: string } };
+      };
       showSnackbar(
-        err.response?.data?.msg ||
-          err.response?.data?.message ||
+        error?.response?.data?.msg ||
+          error?.response?.data?.message ||
           'Failed to fetch reflections',
         'error',
       );
@@ -185,10 +216,14 @@ export default function ReflectionList() {
   };
 
   useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  useEffect(() => {
     fetchReflections();
     fetchRetryingIcons();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  }, [page, selectedUser]);
 
   // 如果有正在重试的icon，每5秒刷新一次状态
   useEffect(() => {
@@ -209,6 +244,87 @@ export default function ReflectionList() {
 
   // 创建一个 Set 来快速查找正在 retry 的 answerId
   const retryingAnswerIds = new Set(retryingIcons.map(icon => icon.answerId));
+
+  const handleUserChange = (user: User | null) => {
+    setSelectedUser(user);
+    setPage(1); // 重置到第一页
+  };
+
+  const handleExport = async () => {
+    if (!selectedUser) {
+      showSnackbar('Please select a user first', 'error');
+      return;
+    }
+
+    try {
+      // 后端 TransformInterceptor 返回 { success, msg, data }
+      // 前端拦截器提取 response.data.data，所以这里得到的是后端原始返回的数据
+      // 后端返回 { data: [...] }，所以这里得到 { data: [...] }
+      const response = (await api.get(
+        `/admin-reflection/export/${selectedUser.id}`,
+      )) as { data: Array<{ time: string; question: string; answer: string }> };
+
+      const data = response?.data;
+
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        showSnackbar('No data to export', 'error');
+        return;
+      }
+
+      // 转换为 CSV
+      const escapeCsvField = (field: string): string => {
+        if (field === null || field === undefined) return '""';
+        const str = String(field);
+        // 如果包含逗号、引号或换行符，需要用引号包裹并转义引号
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const headers = ['Time', 'Question', 'Answer'];
+      const csvRows = [
+        headers.join(','),
+        ...data.map(
+          (row: { time: string; question: string; answer: string }) => {
+            return [
+              escapeCsvField(row.time || ''),
+              escapeCsvField(row.question || ''),
+              escapeCsvField(row.answer || ''),
+            ].join(',');
+          },
+        ),
+      ];
+
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob(['\ufeff' + csvContent], {
+        type: 'text/csv;charset=utf-8;',
+      });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute(
+        'download',
+        `user_answers_${selectedUser.email || selectedUser.apple_id || selectedUser.id}_${new Date().toISOString().split('T')[0]}.csv`,
+      );
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showSnackbar('Export successful', 'success');
+    } catch (err: unknown) {
+      const error = err as {
+        response?: { data?: { msg?: string; message?: string } };
+      };
+      showSnackbar(
+        error?.response?.data?.msg ||
+          error?.response?.data?.message ||
+          'Failed to export data',
+        'error',
+      );
+    }
+  };
 
   return (
     <Box>
@@ -278,6 +394,40 @@ export default function ReflectionList() {
               </Box>
             </Tooltip>
           )}
+        </Box>
+        <Box
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 300 }}
+        >
+          <Autocomplete
+            options={users}
+            getOptionLabel={option =>
+              option.email || option.apple_id || 'Unknown User'
+            }
+            value={selectedUser}
+            onChange={(_, newValue) => handleUserChange(newValue)}
+            renderInput={params => (
+              <TextField
+                {...params}
+                label="Filter by User"
+                size="small"
+                variant="outlined"
+                placeholder="Select a user..."
+              />
+            )}
+            isOptionEqualToValue={(option, value) => option.id === value.id}
+            sx={{ flex: 1 }}
+          />
+          <Tooltip title="Export user answers in csv">
+            <span>
+              <IconButton
+                onClick={handleExport}
+                disabled={!selectedUser}
+                color="primary"
+              >
+                <FileDownloadIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
         </Box>
       </Box>
 

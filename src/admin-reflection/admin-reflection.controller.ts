@@ -31,4 +31,9 @@ export class AdminReflectionController {
     const bypassValue = bypass === 'true' || bypass === '1';
     return await this.service.setBypass(answerId, bypassValue);
   }
+
+  @Get('export/:userId')
+  async exportUserAnswers(@Param('userId') userId: string) {
+    return await this.service.exportUserAnswers(userId);
+  }
 }

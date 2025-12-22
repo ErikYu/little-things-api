@@ -15,16 +15,20 @@ export class AdminReflectionService {
   ) {}
 
   async findList(queryDto: QueryReflectionDto) {
-    const { page = 1, pageSize = 10 } = queryDto;
+    const { page = 1, pageSize = 10, userId } = queryDto;
     const pageNum = typeof page === 'string' ? parseInt(page, 10) : page;
     const pageSizeNum =
       typeof pageSize === 'string' ? parseInt(pageSize, 10) : pageSize;
 
+    // 构建 where 条件
+    const where = userId ? { user_id: userId } : {};
+
     // 查询总数
-    const total = await this.prisma.answer.count();
+    const total = await this.prisma.answer.count({ where });
 
     // 查询列表
     const data = await this.prisma.answer.findMany({
+      where,
       skip: (pageNum - 1) * pageSizeNum,
       take: pageSizeNum,
       orderBy: {
@@ -133,7 +137,7 @@ export class AdminReflectionService {
       })
       .catch(err => {
         this.logger.error(
-          `Failed to generate icon for answer ${answerId}: ${err.message}`,
+          `Failed to generate icon for answer ${answerId}: ${err instanceof Error ? err.message : String(err)}`,
         );
       });
 
@@ -215,6 +219,32 @@ export class AdminReflectionService {
       message: `Icon bypass set to ${bypass}`,
       iconId: answer.icon.id,
       bypass,
+    };
+  }
+
+  async exportUserAnswers(userId: string) {
+    const answers = await this.prisma.answer.findMany({
+      where: {
+        user_id: userId,
+      },
+      orderBy: {
+        created_at: 'asc',
+      },
+      include: {
+        question: {
+          select: {
+            title: true,
+          },
+        },
+      },
+    });
+
+    return {
+      data: answers.map(answer => ({
+        time: answer.created_at.toISOString(),
+        question: answer.question.title,
+        answer: answer.content,
+      })),
     };
   }
 }

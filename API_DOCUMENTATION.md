@@ -2,6 +2,10 @@
 
 ## Changelog
 
+### 2026-01-18
+
+- 更新 `GET /api/thread-view` 接口：返回用户所有已回答的问题及其 icon；问题排序规则：pinned 优先，其次按最新回答时间；答案（icon）排序规则：最新生成的在最前
+
 ### 2025-12-15
 
 - 新增 `POST /api/device-token` 接口：保存用户设备Token，用于推送通知
@@ -476,9 +480,18 @@ Authorization: Bearer <your-jwt-token>
 #### 5.2 Thread视图
 
 - **URL**: `GET /api/thread-view`
-- **描述**: 获取用户已pin问题的线程视图，显示每个问题的最新3个答案
+- **描述**: 获取用户所有回答过的问题的线程视图，显示每个问题的所有答案和生成的 icon
 - **认证**: 需要
 - **说明**:
+  - 显示所有用户回答过的问题（不管是否 pin）
+  - 问题排序规则：
+    1. pinned 问题优先于 unpinned 问题
+    2. 在相同 pinned 状态下，按最新回答时间排序（最新的在前）
+  - 每个问题显示所有答案（不再限制数量）
+  - 答案排序规则：按 icon 创建时间排序（最新生成的 icon 对应的答案在最前）
+    - 有 icon 的答案排在没有 icon 的答案之前
+    - 没有 icon 的答案之间，按答案创建时间排序
+  - 每个问题包含 `pinned` 字段（boolean 类型），表示该问题是否被用户 pin
   - 每个答案包含 `icon` 字段，字段说明同 `GET /api/answers` 接口
 - **响应示例**:
   ```json
@@ -488,6 +501,7 @@ Authorization: Bearer <your-jwt-token>
       {
         "id": "cludquestion123456789",
         "title": "今天让你感到最温暖的小事是什么？",
+        "pinned": true,
         "answers": [
           {
             "id": "cludanswer123456789",

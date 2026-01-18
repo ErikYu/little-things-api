@@ -397,66 +397,153 @@ export class OnboardService {
   }
 
   async getThreadView(userId: string) {
-    // 获取用户已pin的问题
-    const pinnedQuestions = await this.prisma.questionUserPinned.findMany({
+    // 1. 一次性获取所有答案（包含问题和 icon 信息）
+    const allAnswers = await this.prisma.answer.findMany({
       where: { user_id: userId },
-      include: {
+      select: {
+        id: true,
+        content: true,
+        created_ymd: true,
+        created_at: true,
+        question_id: true,
         question: {
           select: {
             id: true,
             title: true,
           },
         },
-      },
-      orderBy: {
-        question: {
-          sequence: 'asc',
+        icon: {
+          select: {
+            url: true,
+            status: true,
+            created_at: true,
+          },
         },
       },
+      orderBy: { created_at: 'desc' },
     });
 
-    // 为每个pin的问题获取用户最新的3个答案
-    const result = await Promise.all(
-      pinnedQuestions.map(async pinnedQuestion => {
-        const answers = await this.prisma.answer.findMany({
-          where: {
-            user_id: userId,
-            question_id: pinnedQuestion.question_id,
-          },
-          select: {
-            id: true,
-            content: true,
-            created_ymd: true,
-            icon: {
-              select: {
-                url: true,
-                status: true,
-              },
-            },
-          },
-          orderBy: { created_at: 'desc' },
-          take: 3,
+    if (allAnswers.length === 0) {
+      return [];
+    }
+
+    // 2. 获取 pin 状态
+    const pinnedQuestions = await this.prisma.questionUserPinned.findMany({
+      where: { user_id: userId },
+      select: { question_id: true },
+    });
+
+    const pinnedQuestionIds = new Set(pinnedQuestions.map(p => p.question_id));
+
+    // 3. 在内存中按 question_id 分组答案，并计算每个问题的最新回答时间
+    const questionMap = new Map<
+      string,
+      {
+        id: string;
+        title: string;
+        pinned: boolean;
+        latestAnswerTime: Date;
+        answers: Array<{
+          id: string;
+          content: string;
+          created_ymd: string;
+          created_at: Date;
+          icon: {
+            url: string;
+            status: string;
+            created_at: Date;
+          } | null;
+        }>;
+      }
+    >();
+
+    allAnswers.forEach(answer => {
+      const questionId = answer.question_id;
+      const question = answer.question;
+
+      if (!questionMap.has(questionId)) {
+        questionMap.set(questionId, {
+          id: question.id,
+          title: question.title,
+          pinned: pinnedQuestionIds.has(questionId),
+          latestAnswerTime: answer.created_at,
+          answers: [],
         });
+      }
 
-        return {
-          ...pinnedQuestion.question,
-          answers: answers.map(answer => ({
-            ...answer,
-            icon: answer.icon
-              ? {
-                  ...answer.icon,
-                  url:
-                    answer.icon.status === 'GENERATED' && answer.icon.url
-                      ? this.iconService.getSignedUrl(answer.icon.url)
-                      : answer.icon.url,
-                }
-              : null,
-          })),
-        };
-      }),
-    );
+      const questionData = questionMap.get(questionId)!;
+      questionData.answers.push({
+        id: answer.id,
+        content: answer.content,
+        created_ymd: answer.created_ymd,
+        created_at: answer.created_at,
+        icon: answer.icon
+          ? {
+              url: answer.icon.url,
+              status: answer.icon.status,
+              created_at: answer.icon.created_at,
+            }
+          : null,
+      });
 
-    return result;
+      // 更新最新回答时间
+      if (answer.created_at > questionData.latestAnswerTime) {
+        questionData.latestAnswerTime = answer.created_at;
+      }
+    });
+
+    // 4. 问题排序：先按 pinned 状态（pinned 在前），再按最新回答时间（最新的在前）
+    const sortedQuestions = Array.from(questionMap.values()).sort((a, b) => {
+      // 先按 pinned 状态排序
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+
+      // 相同 pinned 状态下，按最新回答时间排序
+      return b.latestAnswerTime.getTime() - a.latestAnswerTime.getTime();
+    });
+
+    // 5. 对每个问题的答案进行排序：按 icon 创建时间排序（最新的在前）
+    sortedQuestions.forEach(question => {
+      question.answers.sort((a, b) => {
+        const aIconTime = a.icon?.created_at;
+        const bIconTime = b.icon?.created_at;
+
+        // 如果都有 icon，按 icon 创建时间排序（最新的在前）
+        if (aIconTime && bIconTime) {
+          return bIconTime.getTime() - aIconTime.getTime();
+        }
+
+        // 如果只有 a 有 icon，a 在前
+        if (aIconTime && !bIconTime) return -1;
+
+        // 如果只有 b 有 icon，b 在前
+        if (!aIconTime && bIconTime) return 1;
+
+        // 如果都没有 icon，按答案创建时间排序（最新的在前）
+        return b.created_at.getTime() - a.created_at.getTime();
+      });
+    });
+
+    // 6. 处理 icon URL 签名并返回结果
+    return sortedQuestions.map(question => ({
+      id: question.id,
+      title: question.title,
+      pinned: question.pinned,
+      answers: question.answers.map(answer => ({
+        id: answer.id,
+        content: answer.content,
+        created_ymd: answer.created_ymd,
+        icon: answer.icon
+          ? {
+              url:
+                answer.icon.status === 'GENERATED' && answer.icon.url
+                  ? this.iconService.getSignedUrl(answer.icon.url)
+                  : answer.icon.url,
+              status: answer.icon.status,
+            }
+          : null,
+      })),
+    }));
   }
 
   async getQuestionsOfTheDay() {

@@ -8,6 +8,7 @@ import { AdminReflectionModule } from './admin-reflection/admin-reflection.modul
 import { AdminUserModule } from './admin-user/admin-user.module';
 import { AdminNotificationModule } from './admin-notification/admin-notification.module';
 import { AdminQuestionModule } from './admin-question/admin-question.module';
+import { AdminCategoryModule } from './admin-category/admin-category.module';
 import { OnboardModule } from './onboard/onboard.module';
 import { SchedulersModule } from './schedulers/schedulers.module';
 import { ConfigModule } from '@nestjs/config';
@@ -76,6 +77,7 @@ import { randomUUID } from 'crypto';
     AdminUserModule,
     AdminNotificationModule,
     AdminQuestionModule,
+    AdminCategoryModule,
     OnboardModule,
     SchedulersModule,
     ConfigModule.forRoot(),

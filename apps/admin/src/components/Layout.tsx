@@ -28,6 +28,7 @@ import ListAltIcon from '@mui/icons-material/ListAlt';
 import PeopleIcon from '@mui/icons-material/People';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import QuizIcon from '@mui/icons-material/Quiz';
+import CategoryIcon from '@mui/icons-material/Category';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
@@ -164,6 +165,42 @@ export default function Layout() {
                     <QuizIcon />
                   </ListItemIcon>
                   {!collapsed && <ListItemText primary="Question Library" />}
+                </ListItemButton>
+              </Tooltip>
+            </ListItem>
+            <ListItem disablePadding>
+              <Tooltip title={collapsed ? 'Category Library' : ''} placement="right">
+                <ListItemButton
+                  selected={location.pathname.startsWith('/category-lib')}
+                  onClick={() => navigate('/category-lib')}
+                  sx={{
+                    minHeight: 48,
+                    justifyContent: collapsed ? 'center' : 'flex-start',
+                    px: collapsed ? 1.5 : 2.5,
+                    mx: collapsed ? 0.5 : 0,
+                    borderRadius: collapsed ? 1 : 0,
+                    '&.Mui-selected': {
+                      backgroundColor: 'primary.main',
+                      color: 'primary.contrastText',
+                      '&:hover': {
+                        backgroundColor: 'primary.dark',
+                      },
+                      '& .MuiListItemIcon-root': {
+                        color: 'primary.contrastText',
+                      },
+                    },
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+                      mr: collapsed ? 0 : 3,
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <CategoryIcon />
+                  </ListItemIcon>
+                  {!collapsed && <ListItemText primary="Category Library" />}
                 </ListItemButton>
               </Tooltip>
             </ListItem>

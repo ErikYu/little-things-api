@@ -11,6 +11,7 @@ import MemberList from '../pages/members/MemberList';
 import Notification from '../pages/notification/Notification';
 import QuestionInventory from '../pages/question-lib/QuestionInventory';
 import QuestionProfile from '../pages/question-lib/QuestionProfile';
+import CategoryLibManagement from '../pages/category-lib/CategoryLibManagement';
 import { getToken } from '../utils/api';
 import theme from '../theme';
 
@@ -37,6 +38,7 @@ export function App() {
           <Route path="question-lib" element={<QuestionInventory />} />
           <Route path="question-lib/new" element={<QuestionProfile />} />
           <Route path="question-lib/:id" element={<QuestionProfile />} />
+          <Route path="category-lib" element={<CategoryLibManagement />} />
         </Route>
       </Routes>
     </ThemeProvider>

@@ -56,8 +56,11 @@ export class OnboardService {
 
     const pinnedQuestionIds = new Set(pinnedQuestions.map(p => p.question_id));
 
-    // 获取所有分类和问题
+    // 获取所有分类和问题（只获取第一层category）
     const categories = await this.prisma.category.findMany({
+      where: {
+        parent_id: null,
+      },
       select: {
         id: true,
         name: true,
@@ -348,6 +351,7 @@ export class OnboardService {
         },
         icon: {
           select: {
+            id: true,
             url: true,
             status: true,
           },
@@ -414,6 +418,7 @@ export class OnboardService {
         },
         icon: {
           select: {
+            id: true,
             url: true,
             status: true,
             created_at: true,
@@ -449,6 +454,7 @@ export class OnboardService {
           created_ymd: string;
           created_at: Date;
           icon: {
+            id: string;
             url: string;
             status: string;
             created_at: Date;
@@ -479,6 +485,7 @@ export class OnboardService {
         created_at: answer.created_at,
         icon: answer.icon
           ? {
+              id: answer.icon.id,
               url: answer.icon.url,
               status: answer.icon.status,
               created_at: answer.icon.created_at,
@@ -535,6 +542,7 @@ export class OnboardService {
         created_ymd: answer.created_ymd,
         icon: answer.icon
           ? {
+              id: answer.icon.id,
               url:
                 answer.icon.status === 'GENERATED' && answer.icon.url
                   ? this.iconService.getSignedUrl(answer.icon.url)

@@ -2,6 +2,11 @@
 
 ## Changelog
 
+### 2026-01-20
+
+- 更新 `GET /api/calendar-view` 接口：响应中每个 reflection 的 `icon` 字段新增 `id` 字段
+- 更新 `GET /api/thread-view` 接口：响应中每个答案的 `icon` 字段新增 `id` 字段
+
 ### 2026-01-19
 
 - 更新 `GET /api/questions-of-the-day` 接口：实现确定性随机逻辑，同一用户同一天返回相同的3个问题；排除用户已 pinned 的问题；确保返回的3个问题的 category、sub_category、cluster 均不重复（内部逻辑，不影响返回格式）
@@ -442,6 +447,7 @@ Authorization: Bearer <your-jwt-token>
               }
             },
             "icon": {
+              "id": "cludicon123456789",
               "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx",
               "status": "GENERATED"
             }
@@ -459,6 +465,7 @@ Authorization: Bearer <your-jwt-token>
               }
             },
             "icon": {
+              "id": "cludicon987654321",
               "url": "",
               "status": "PENDING"
             }
@@ -519,6 +526,7 @@ Authorization: Bearer <your-jwt-token>
             "content": "今天早上邻居帮我提了重物上楼，虽然只是一个小举动，但让我一整天都感到温暖。",
             "created_ymd": "2024-01-15",
             "icon": {
+              "id": "cludicon123456789",
               "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx",
               "status": "GENERATED"
             }
@@ -528,6 +536,7 @@ Authorization: Bearer <your-jwt-token>
             "content": "昨天朋友送了我一束花，让我感到很惊喜。",
             "created_ymd": "2024-01-14",
             "icon": {
+              "id": "cludicon098765432",
               "url": "",
               "status": "PENDING"
             }

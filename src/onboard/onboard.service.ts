@@ -546,12 +546,54 @@ export class OnboardService {
     }));
   }
 
-  async getQuestionsOfTheDay() {
+  /**
+   * 简单的字符串hash函数
+   */
+  private hashString(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+  }
+
+  /**
+   * 基于seed的Fisher-Yates洗牌算法
+   */
+  private seededShuffle<T>(array: T[], seed: string): T[] {
+    const shuffled = [...array];
+    let hash = this.hashString(seed);
+
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      // 生成伪随机数
+      hash = (hash * 9301 + 49297) % 233280;
+      const j = Math.floor((hash / 233280) * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    return shuffled;
+  }
+
+  async getQuestionsOfTheDay(userId: string) {
+    // 1. 获取所有未删除的问题
     const allQuestions = await this.prisma.question.findMany({
+      where: {
+        deleted_at: null,
+      },
       select: {
         id: true,
         title: true,
+        category_id: true,
+        sub_category_id: true,
+        cluster: true,
         category: {
+          select: {
+            name: true,
+          },
+        },
+        sub_category: {
           select: {
             name: true,
           },
@@ -559,9 +601,74 @@ export class OnboardService {
       },
     });
 
-    // 随机打乱并取前3个
-    const shuffled = allQuestions.sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 3);
+    // 2. 获取用户pinned的问题ID
+    const pinnedQuestions = await this.prisma.questionUserPinned.findMany({
+      where: { user_id: userId },
+      select: { question_id: true },
+    });
+
+    const pinnedQuestionIds = new Set(pinnedQuestions.map(p => p.question_id));
+
+    // 3. 过滤掉用户pinned的问题
+    const candidateQuestions = allQuestions.filter(
+      q => !pinnedQuestionIds.has(q.id),
+    );
+
+    // 如果没有候选问题，返回空数组
+    if (candidateQuestions.length === 0) {
+      return [];
+    }
+
+    // 4. 使用确定性随机排序（基于userId和今天的日期）
+    const today = dayjs().format('YYYY-MM-DD');
+    const seed = `${userId}_${today}`;
+    const shuffledQuestions = this.seededShuffle(candidateQuestions, seed);
+
+    // 5. 三维度去重选择：确保category、sub_category、cluster都不重复
+    const selectedQuestions: typeof candidateQuestions = [];
+    const usedCategories = new Set<string>();
+    const usedSubCategories = new Set<string | null>();
+    const usedClusters = new Set<string | null>();
+
+    for (const question of shuffledQuestions) {
+      // 如果已经选够3个，退出循环
+      if (selectedQuestions.length >= 3) {
+        break;
+      }
+
+      // 第一个问题直接加入
+      if (selectedQuestions.length === 0) {
+        selectedQuestions.push(question);
+        usedCategories.add(question.category_id);
+        usedSubCategories.add(question.sub_category_id ?? null);
+        usedClusters.add(question.cluster ?? null);
+        continue;
+      }
+
+      // 后续问题需要检查三个维度是否都未被使用
+      const categoryUsed = usedCategories.has(question.category_id);
+      const subCategoryUsed = usedSubCategories.has(
+        question.sub_category_id ?? null,
+      );
+      const clusterUsed = usedClusters.has(question.cluster ?? null);
+
+      // 只有三个维度都未被使用，才加入结果
+      if (!categoryUsed && !subCategoryUsed && !clusterUsed) {
+        selectedQuestions.push(question);
+        usedCategories.add(question.category_id);
+        usedSubCategories.add(question.sub_category_id ?? null);
+        usedClusters.add(question.cluster ?? null);
+      }
+    }
+
+    // 6. 返回结果，格式化为API响应格式（保持原有接口格式）
+    return selectedQuestions.map(q => ({
+      id: q.id,
+      title: q.title,
+      category: {
+        name: (q.category as { name: string })?.name ?? '',
+      },
+    }));
   }
 
   async saveDeviceToken(userId: string, deviceToken: string) {

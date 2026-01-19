@@ -142,8 +142,9 @@ export class OnboardController {
   @ApiOperation({ summary: '获取随机三个问题' })
   @Get('questions-of-the-day')
   @UseGuards(AuthGuard('jwt'))
-  getQuestionsOfTheDay() {
-    return this.onboardService.getQuestionsOfTheDay();
+  getQuestionsOfTheDay(@Request() req: AuthenticatedRequest) {
+    const userId = req.user.userId;
+    return this.onboardService.getQuestionsOfTheDay(userId);
   }
 
   @ApiOperation({ summary: '保存设备Token' })

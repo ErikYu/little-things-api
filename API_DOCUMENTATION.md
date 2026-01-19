@@ -2,6 +2,10 @@
 
 ## Changelog
 
+### 2026-01-19
+
+- 更新 `GET /api/questions-of-the-day` 接口：实现确定性随机逻辑，同一用户同一天返回相同的3个问题；排除用户已 pinned 的问题；确保返回的3个问题的 category、sub_category、cluster 均不重复（内部逻辑，不影响返回格式）
+
 ### 2026-01-18
 
 - 更新 `GET /api/thread-view` 接口：返回用户所有已回答的问题及其 icon；问题排序规则：pinned 优先，其次按最新回答时间；答案（icon）排序规则：最新生成的在最前
@@ -360,7 +364,7 @@ Authorization: Bearer <your-jwt-token>
 #### 4.3 获取今日问题
 
 - **URL**: `GET /api/questions-of-the-day`
-- **描述**: 获取随机三个问题
+- **描述**: 获取每日推荐的3个问题（Question of the Day）
 - **认证**: 需要
 - **响应示例**:
   ```json
@@ -369,32 +373,39 @@ Authorization: Bearer <your-jwt-token>
     "data": [
       {
         "id": "cludquestion123456789",
-        "title": "今天让你感到最温暖的小事是什么？",
+        "title": "What was one little thing that you feel proud of yourself for today?",
         "category": {
-          "name": "生活感悟"
+          "name": "small wins"
         }
       },
       {
         "id": "cludquestion098765432",
         "title": "今天有什么让你感到感激的事情？",
         "category": {
-          "name": "人际关系"
+          "name": "gratitude"
         }
       },
       {
         "id": "cludquestionabcdef123",
         "title": "今天哪个瞬间让你想停下来好好感受？",
         "category": {
-          "name": "工作思考"
+          "name": "present moment"
         }
       }
     ]
   }
   ```
 - **说明**:
-  - 每次调用都会随机返回3个问题
-  - 如果问题总数少于3个，则返回所有问题
-  - 每个问题包含分类信息
+  - **确定性随机**：同一用户在同一天内多次调用，返回相同的3个问题（基于 userId + 日期作为随机种子）
+  - **排除 Pinned 问题**：返回的问题不包含用户已 pinned 的问题
+  - **三维度去重**：返回的3个问题保证 `category`、`sub_category`、`cluster` 三个维度各自不重复（这是内部选择逻辑，确保问题多样性）
+    - 每个问题的 `category` 不同
+    - 每个问题的 `sub_category` 不同
+    - 每个问题的 `cluster` 不同
+  - **数量说明**：
+    - 正常情况返回3个问题
+    - 如果符合条件的问题不足3个，返回实际找到的问题数量
+    - 如果所有问题都被用户 pinned，返回空数组 `[]`
 
 ### 5. 视图模式
 

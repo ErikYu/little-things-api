@@ -9,6 +9,8 @@ import PromptDetail from '../pages/prompts/PromptDetail';
 import ReflectionList from '../pages/reflections/ReflectionList';
 import MemberList from '../pages/members/MemberList';
 import Notification from '../pages/notification/Notification';
+import QuestionInventory from '../pages/question-lib/QuestionInventory';
+import QuestionProfile from '../pages/question-lib/QuestionProfile';
 import { getToken } from '../utils/api';
 import theme from '../theme';
 
@@ -26,12 +28,15 @@ export function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="/prompts" replace />} />
+          <Route index element={<Navigate to="/question-lib" replace />} />
           <Route path="prompts" element={<PromptList />} />
           <Route path="prompts/:id" element={<PromptDetail />} />
           <Route path="reflections" element={<ReflectionList />} />
           <Route path="members" element={<MemberList />} />
           <Route path="notification" element={<Notification />} />
+          <Route path="question-lib" element={<QuestionInventory />} />
+          <Route path="question-lib/new" element={<QuestionProfile />} />
+          <Route path="question-lib/:id" element={<QuestionProfile />} />
         </Route>
       </Routes>
     </ThemeProvider>

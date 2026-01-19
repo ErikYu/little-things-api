@@ -40,23 +40,33 @@ model Category {
   id         String   @id @default(cuid())
   name       String
   sequence   Int
+  parent_id  String?
   created_at DateTime @default(now()) // 上传时间
   updated_at DateTime @updatedAt // 更新时间
 
-  questions Question[]
+  parent        Category?  @relation("CategoryToChildren", fields: [parent_id], references: [id], onDelete: SetNull)
+  children      Category[] @relation("CategoryToChildren")
+  questions     Question[] @relation("QuestionCategory")
+  sub_questions Question[] @relation("QuestionSubCategory")
 
+  @@unique([parent_id, name])
+  @@index([parent_id])
   @@map("categories")
 }
 
 model Question {
-  id          String   @id @default(cuid())
-  title       String
-  category_id String
-  sequence    Int
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id              String    @id @default(cuid())
+  title           String
+  category_id     String
+  sub_category_id String?
+  cluster         String?
+  sequence        Int
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  deleted_at      DateTime?
 
-  category           Category             @relation(fields: [category_id], references: [id])
+  category           Category             @relation("QuestionCategory", fields: [category_id], references: [id])
+  sub_category       Category?            @relation("QuestionSubCategory", fields: [sub_category_id], references: [id], onDelete: SetNull)
   answers            Answer[]
   QuestionUserPinned QuestionUserPinned[]
 

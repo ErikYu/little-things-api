@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../utils/api';
 import {
   Box,
@@ -43,13 +43,16 @@ interface QuestionDetail {
 export default function QuestionProfile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const isNew = id === 'new';
+  const location = useLocation();
+  const isNew = location.pathname === '/question-lib/new' || id === 'new';
 
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [subCategories, setSubCategories] = useState<Category[]>([]);
   const [title, setTitle] = useState('');
-  const [sequence, setSequence] = useState<number>(1);
   const [cluster, setCluster] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [snackbar, setSnackbar] = useState<{
@@ -74,9 +77,14 @@ export default function QuestionProfile() {
     return categories.find(category => category.id === selectedCategoryId) || null;
   }, [categories, selectedCategoryId]);
 
+  const selectedSubCategory = useMemo(() => {
+    return subCategories.find(category => category.id === selectedSubCategoryId) || null;
+  }, [subCategories, selectedSubCategoryId]);
+
   const fetchCategories = async () => {
     try {
       const data: Category[] = await api.get('/admin-question/categories');
+      setAllCategories(data);
       setCategories(data.filter(category => !category.parent_id));
     } catch (err: any) {
       showSnackbar(
@@ -88,6 +96,24 @@ export default function QuestionProfile() {
     }
   };
 
+  // 根据选中的 category 更新 sub-categories 列表
+  useEffect(() => {
+    if (selectedCategoryId) {
+      const subs = allCategories.filter(
+        category => category.parent_id === selectedCategoryId,
+      );
+      setSubCategories(subs);
+      // 如果当前选中的 sub-category 不在新的列表中，清空选择
+      if (selectedSubCategoryId && !subs.find(cat => cat.id === selectedSubCategoryId)) {
+        setSelectedSubCategoryId('');
+      }
+    } else {
+      setSubCategories([]);
+      setSelectedSubCategoryId('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategoryId, allCategories]);
+
   const fetchQuestion = async () => {
     if (isNew || !id) {
       setLoading(false);
@@ -97,9 +123,9 @@ export default function QuestionProfile() {
     try {
       const data: QuestionDetail = await api.get(`/admin-question/${id}`);
       setTitle(data.title);
-      setSequence(data.sequence);
       setCluster(data.cluster || '');
       setSelectedCategoryId(data.category?.id || '');
+      setSelectedSubCategoryId(data.sub_category?.id || '');
     } catch (err: any) {
       showSnackbar(
         err.response?.data?.msg ||
@@ -113,12 +139,15 @@ export default function QuestionProfile() {
   };
 
   useEffect(() => {
-    fetchCategories();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    fetchQuestion();
+    const loadData = async () => {
+      await fetchCategories();
+      if (!isNew && id) {
+        await fetchQuestion();
+      } else {
+        setLoading(false);
+      }
+    };
+    loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isNew]);
 
@@ -133,8 +162,8 @@ export default function QuestionProfile() {
       return;
     }
 
-    if (!Number.isFinite(sequence) || sequence <= 0) {
-      showSnackbar('Sequence must be a positive number', 'error');
+    if (!selectedSubCategoryId) {
+      showSnackbar('Sub-category is required', 'error');
       return;
     }
 
@@ -143,7 +172,7 @@ export default function QuestionProfile() {
       const payload = {
         title: title.trim(),
         category_id: selectedCategoryId,
-        sequence,
+        sub_category_id: selectedSubCategoryId,
         cluster: cluster.trim() || null,
       };
 
@@ -228,13 +257,29 @@ export default function QuestionProfile() {
             )}
             isOptionEqualToValue={(option, value) => option.id === value.id}
           />
-          <TextField
-            label="Sequence"
-            type="number"
-            inputProps={{ min: 1 }}
-            value={sequence}
-            onChange={event => setSequence(Number(event.target.value))}
-            required
+          <Autocomplete
+            options={subCategories}
+            getOptionLabel={option => option.name}
+            value={selectedSubCategory}
+            onChange={(_, newValue) =>
+              setSelectedSubCategoryId(newValue ? newValue.id : '')
+            }
+            disabled={!selectedCategoryId || subCategories.length === 0}
+            renderInput={params => (
+              <TextField
+                {...params}
+                label="Sub-category"
+                required
+                placeholder={
+                  !selectedCategoryId
+                    ? 'Please select a category first'
+                    : subCategories.length === 0
+                      ? 'No sub-categories available'
+                      : 'Select a sub-category...'
+                }
+              />
+            )}
+            isOptionEqualToValue={(option, value) => option.id === value.id}
           />
           <TextField
             label="Cluster"

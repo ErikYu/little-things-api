@@ -120,11 +120,41 @@ export class AdminQuestionService {
       throw new BadRequestException('Category not found');
     }
 
+    // 验证 sub_category_id 必须是所选 category_id 的子分类
+    const subCategory = await this.prisma.category.findUnique({
+      where: { id: createDto.sub_category_id },
+      select: { id: true, parent_id: true },
+    });
+
+    if (!subCategory) {
+      throw new BadRequestException('Sub-category not found');
+    }
+
+    if (subCategory.parent_id !== createDto.category_id) {
+      throw new BadRequestException(
+        'Sub-category must be a child of the selected category',
+      );
+    }
+
+    // 自动生成 sequence：查找同 category 下现有问题的最大 sequence + 1
+    const maxSequence = await this.prisma.question.aggregate({
+      where: {
+        category_id: createDto.category_id,
+        deleted_at: null,
+      },
+      _max: {
+        sequence: true,
+      },
+    });
+
+    const sequence = (maxSequence._max.sequence ?? 0) + 1;
+
     return this.prisma.question.create({
       data: {
         title: createDto.title,
         category_id: createDto.category_id,
-        sequence: createDto.sequence,
+        sub_category_id: createDto.sub_category_id,
+        sequence,
         cluster: createDto.cluster ?? null,
       },
       include: {
@@ -147,12 +177,15 @@ export class AdminQuestionService {
   async update(id: string, updateDto: UpdateQuestionDto) {
     const existing = await this.prisma.question.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, category_id: true },
     });
 
     if (!existing) {
       throw new NotFoundException('Question not found');
     }
+
+    // 确定要使用的 category_id（如果更新了就用新的，否则用现有的）
+    const categoryId = updateDto.category_id ?? existing.category_id;
 
     if (updateDto.category_id) {
       const category = await this.prisma.category.findUnique({
@@ -165,6 +198,24 @@ export class AdminQuestionService {
       }
     }
 
+    // 如果提供了 sub_category_id，验证它必须是所选 category_id 的子分类
+    if (updateDto.sub_category_id !== undefined) {
+      const subCategory = await this.prisma.category.findUnique({
+        where: { id: updateDto.sub_category_id },
+        select: { id: true, parent_id: true },
+      });
+
+      if (!subCategory) {
+        throw new BadRequestException('Sub-category not found');
+      }
+
+      if (subCategory.parent_id !== categoryId) {
+        throw new BadRequestException(
+          'Sub-category must be a child of the selected category',
+        );
+      }
+    }
+
     return this.prisma.question.update({
       where: { id },
       data: {
@@ -172,8 +223,8 @@ export class AdminQuestionService {
         ...(updateDto.category_id !== undefined && {
           category_id: updateDto.category_id,
         }),
-        ...(updateDto.sequence !== undefined && {
-          sequence: updateDto.sequence,
+        ...(updateDto.sub_category_id !== undefined && {
+          sub_category_id: updateDto.sub_category_id,
         }),
         ...(updateDto.cluster !== undefined && { cluster: updateDto.cluster }),
       },
@@ -195,8 +246,8 @@ export class AdminQuestionService {
   }
 
   async delete(id: string) {
-    const existing = await this.prisma.question.findUnique({
-      where: { id },
+    const existing = await this.prisma.question.findFirst({
+      where: { id, deleted_at: null },
       select: { id: true },
     });
 
@@ -214,8 +265,11 @@ export class AdminQuestionService {
       );
     }
 
-    return this.prisma.question.delete({
+    return this.prisma.question.update({
       where: { id },
+      data: {
+        deleted_at: new Date(),
+      },
       include: {
         category: {
           select: {

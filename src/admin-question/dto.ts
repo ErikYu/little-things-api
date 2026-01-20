@@ -1,14 +1,14 @@
 export interface CreateQuestionDto {
   title: string;
   category_id: string;
-  sequence: number;
+  sub_category_id: string;
   cluster?: string | null;
 }
 
 export interface UpdateQuestionDto {
   title?: string;
   category_id?: string;
-  sequence?: number;
+  sub_category_id?: string;
   cluster?: string | null;
 }
 

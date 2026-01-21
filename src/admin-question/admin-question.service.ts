@@ -286,4 +286,207 @@ export class AdminQuestionService {
       },
     });
   }
+
+  async getFixedQoDQuestions() {
+    const fixedQuestions = await this.prisma.questionOfTheDay.findMany({
+      orderBy: {
+        sequence: 'asc',
+      },
+      include: {
+        question: {
+          include: {
+            category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            sub_category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return fixedQuestions.map(item => ({
+      id: item.id,
+      question_id: item.question_id,
+      sequence: item.sequence,
+      question: {
+        id: item.question.id,
+        title: item.question.title,
+        category: item.question.category,
+        sub_category: item.question.sub_category,
+        cluster: item.question.cluster,
+      },
+    }));
+  }
+
+  async addFixedQoDQuestion(questionId: string) {
+    // 检查问题是否存在且未删除
+    const question = await this.prisma.question.findFirst({
+      where: {
+        id: questionId,
+        deleted_at: null,
+      },
+    });
+
+    if (!question) {
+      throw new NotFoundException('Question not found');
+    }
+
+    // 检查是否已经固定
+    const existing = await this.prisma.questionOfTheDay.findUnique({
+      where: { question_id: questionId },
+    });
+
+    if (existing) {
+      throw new BadRequestException('Question is already fixed');
+    }
+
+    // 检查是否已经达到最大数量（3个）
+    const count = await this.prisma.questionOfTheDay.count();
+    if (count >= 3) {
+      throw new BadRequestException('Maximum 3 fixed questions allowed');
+    }
+
+    // 找到下一个可用的 sequence
+    const maxSequence = await this.prisma.questionOfTheDay.aggregate({
+      _max: {
+        sequence: true,
+      },
+    });
+
+    const nextSequence = (maxSequence._max.sequence ?? 0) + 1;
+
+    const created = await this.prisma.questionOfTheDay.create({
+      data: {
+        question_id: questionId,
+        sequence: nextSequence,
+      },
+      include: {
+        question: {
+          include: {
+            category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            sub_category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // 返回与 getFixedQoDQuestions 相同的格式
+    return {
+      id: created.id,
+      question_id: created.question_id,
+      sequence: created.sequence,
+      question: {
+        id: created.question.id,
+        title: created.question.title,
+        category: created.question.category,
+        sub_category: created.question.sub_category,
+        cluster: created.question.cluster,
+      },
+    };
+  }
+
+  async removeFixedQoDQuestion(questionId: string) {
+    const fixedQuestion = await this.prisma.questionOfTheDay.findUnique({
+      where: { question_id: questionId },
+    });
+
+    if (!fixedQuestion) {
+      throw new NotFoundException('Fixed question not found');
+    }
+
+    const deletedSequence = fixedQuestion.sequence;
+
+    // 删除固定问题
+    await this.prisma.questionOfTheDay.delete({
+      where: { question_id: questionId },
+    });
+
+    // 重新调整剩余问题的 sequence
+    const remainingQuestions = await this.prisma.questionOfTheDay.findMany({
+      where: {
+        sequence: {
+          gt: deletedSequence,
+        },
+      },
+      orderBy: {
+        sequence: 'asc',
+      },
+    });
+
+    // 更新剩余问题的 sequence，使其连续
+    for (let i = 0; i < remainingQuestions.length; i++) {
+      await this.prisma.questionOfTheDay.update({
+        where: { id: remainingQuestions[i].id },
+        data: {
+          sequence: deletedSequence + i,
+        },
+      });
+    }
+
+    return { success: true };
+  }
+
+  async reorderFixedQoDQuestions(questionIds: string[]) {
+    if (questionIds.length > 3) {
+      throw new BadRequestException('Maximum 3 fixed questions allowed');
+    }
+
+    // 验证所有问题ID都存在
+    const existingQuestions = await this.prisma.questionOfTheDay.findMany({
+      where: {
+        question_id: {
+          in: questionIds,
+        },
+      },
+    });
+
+    if (existingQuestions.length !== questionIds.length) {
+      throw new BadRequestException('Some questions are not fixed');
+    }
+
+    // 分两步更新以避免唯一约束冲突：
+    // 1. 先将所有 sequence 设置为临时值（负数，确保不与现有值冲突）
+    // 2. 然后再设置为目标值
+    await this.prisma.$transaction(async tx => {
+      // 第一步：设置为临时值
+      for (let i = 0; i < questionIds.length; i++) {
+        await tx.questionOfTheDay.update({
+          where: { question_id: questionIds[i] },
+          data: {
+            sequence: -(i + 1), // 使用负数作为临时值
+          },
+        });
+      }
+
+      // 第二步：设置为目标值
+      for (let i = 0; i < questionIds.length; i++) {
+        await tx.questionOfTheDay.update({
+          where: { question_id: questionIds[i] },
+          data: {
+            sequence: i + 1,
+          },
+        });
+      }
+    });
+
+    return this.getFixedQoDQuestions();
+  }
 }

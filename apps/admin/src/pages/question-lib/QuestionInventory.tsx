@@ -6,7 +6,6 @@ import {
   Button,
   Typography,
   Box,
-  Alert,
   Dialog,
   DialogActions,
   DialogContent,
@@ -19,10 +18,12 @@ import {
   Stack,
   Card,
   CardContent,
+  Alert,
   Divider,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import QoDManagementDialog from './QoDManagementDialog';
 
 interface Category {
   id: string;
@@ -62,6 +63,7 @@ interface QuestionsBySubCategory {
   };
 }
 
+
 export default function QuestionInventory() {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -72,6 +74,7 @@ export default function QuestionInventory() {
   const [questionToDelete, setQuestionToDelete] = useState<Question | null>(
     null,
   );
+  const [qodDialogOpen, setQodDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -213,6 +216,7 @@ export default function QuestionInventory() {
     }
   };
 
+
   if (loading && questions.length === 0 && !selectedCategoryId) {
     return <Box sx={{ p: 3, textAlign: 'center' }}>Loading...</Box>;
   }
@@ -230,9 +234,14 @@ export default function QuestionInventory() {
         <Typography variant="h5" component="h2">
           Question Library
         </Typography>
-        <Button variant="contained" onClick={() => navigate('/question-lib/new')}>
-          New Question
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button variant="contained" onClick={() => navigate('/question-lib/new')}>
+            New Question
+          </Button>
+          <Button variant="outlined" onClick={() => setQodDialogOpen(true)}>
+            QoD
+          </Button>
+        </Box>
       </Box>
 
       {parentCategories.length > 0 && (
@@ -374,6 +383,13 @@ export default function QuestionInventory() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <QoDManagementDialog
+        open={qodDialogOpen}
+        onClose={() => setQodDialogOpen(false)}
+        onError={(message) => showSnackbar(message, 'error')}
+        onSuccess={(message) => showSnackbar(message, 'success')}
+      />
 
       <Snackbar
         open={snackbar.open}

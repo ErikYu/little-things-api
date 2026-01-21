@@ -12,4 +12,3 @@ import { PrismaModule } from '../prisma/prisma.module';
   exports: [AdminNotificationService],
 })
 export class AdminNotificationModule {}
-

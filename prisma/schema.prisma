@@ -69,6 +69,7 @@ model Question {
   sub_category       Category?            @relation("QuestionSubCategory", fields: [sub_category_id], references: [id], onDelete: SetNull)
   answers            Answer[]
   QuestionUserPinned QuestionUserPinned[]
+  QuestionOfTheDay   QuestionOfTheDay?
 
   @@map("questions")
 }
@@ -216,4 +217,19 @@ model APNHistory {
   user User @relation(fields: [user_id], references: [id])
 
   @@map("apn_histories")
+}
+
+model QuestionOfTheDay {
+  id          String   @id @default(cuid())
+  question_id String
+  sequence    Int // 排序字段，1-3
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  question Question @relation(fields: [question_id], references: [id], onDelete: Cascade)
+
+  @@unique([question_id])
+  @@unique([sequence])
+  @@index([sequence])
+  @@map("question_of_the_day")
 }

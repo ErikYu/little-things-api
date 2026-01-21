@@ -585,7 +585,56 @@ export class OnboardService {
   }
 
   async getQuestionsOfTheDay(userId: string) {
-    // 1. 获取用户pinned的问题ID
+    // 1. 先获取 QuestionOfTheDay 表中的问题（按 sequence 排序）
+    const fixedQoDQuestions = await this.prisma.questionOfTheDay.findMany({
+      orderBy: {
+        sequence: 'asc',
+      },
+      include: {
+        question: {
+          select: {
+            id: true,
+            title: true,
+            category_id: true,
+            sub_category_id: true,
+            cluster: true,
+            deleted_at: true,
+            category: {
+              select: {
+                name: true,
+              },
+            },
+            sub_category: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // 过滤掉已删除的问题
+    const validFixedQuestions = fixedQoDQuestions
+      .filter(item => item.question.deleted_at === null)
+      .map(item => item.question);
+
+    // 2. 计算还需要随机选择的数量
+    const fixedCount = validFixedQuestions.length;
+    const remainingCount = 3 - fixedCount;
+
+    // 如果已经够3个问题了，直接返回
+    if (remainingCount === 0) {
+      return validFixedQuestions.map(q => ({
+        id: q.id,
+        title: q.title,
+        category: {
+          name: (q.category as { name: string })?.name ?? '',
+        },
+      }));
+    }
+
+    // 3. 获取用户pinned的问题ID
     const pinnedQuestions = await this.prisma.questionUserPinned.findMany({
       where: { user_id: userId },
       select: { question_id: true },
@@ -593,20 +642,12 @@ export class OnboardService {
 
     const pinnedQuestionIds = new Set(pinnedQuestions.map(p => p.question_id));
 
-    // 2. 获取固定的 QoD 问题（按 sequence 排序）
-    const fixedQoDRecords = await this.prisma.questionOfTheDay.findMany({
-      orderBy: {
-        sequence: 'asc',
-      },
-    });
+    // 4. 获取已固定问题的ID集合，用于排除
+    const fixedQuestionIds = new Set(validFixedQuestions.map(q => q.id));
 
-    // 获取固定的问题详情
-    const fixedQuestionIds = fixedQoDRecords.map(r => r.question_id);
-    const fixedQuestions = await this.prisma.question.findMany({
+    // 5. 获取所有未删除的问题，排除已固定和已pinned的问题
+    const allQuestions = await this.prisma.question.findMany({
       where: {
-        id: {
-          in: fixedQuestionIds,
-        },
         deleted_at: null,
       },
       select: {
@@ -628,120 +669,38 @@ export class OnboardService {
       },
     });
 
-    // 创建 question_id 到 question 的映射，并按 sequence 排序
-    const fixedQuestionMap = new Map(fixedQuestions.map(q => [q.id, q]));
-    const fixedQoDQuestions = fixedQoDRecords
-      .map(record => ({
-        ...record,
-        question: fixedQuestionMap.get(record.question_id) || null,
-      }))
-      .filter(item => item.question !== null);
+    // 过滤掉已固定和已pinned的问题
+    const candidateQuestions = allQuestions.filter(
+      q => !fixedQuestionIds.has(q.id) && !pinnedQuestionIds.has(q.id),
+    );
 
-    // 3. 处理固定的问题：排除用户 pinned 的问题，应用三维度去重
-    const selectedQuestions: Array<{
-      id: string;
-      title: string;
-      category_id: string;
-      sub_category_id: string | null;
-      cluster: string | null;
-      category: { name: string };
-      sub_category: { name: string } | null;
-    }> = [];
+    // 6. 如果还需要随机选择问题
+    const selectedQuestions: typeof allQuestions = [...validFixedQuestions];
     const usedCategories = new Set<string>();
     const usedSubCategories = new Set<string | null>();
     const usedClusters = new Set<string | null>();
 
-    // 首先处理固定的问题
-    for (const fixedQoD of fixedQoDQuestions) {
-      if (!fixedQoD.question) {
-        continue; // 跳过已删除的问题
-      }
+    // 记录已固定问题使用的维度
+    validFixedQuestions.forEach(q => {
+      usedCategories.add(q.category_id);
+      usedSubCategories.add(q.sub_category_id ?? null);
+      usedClusters.add(q.cluster ?? null);
+    });
 
-      const question = fixedQoD.question;
-
-      // 跳过用户 pinned 的问题
-      if (pinnedQuestionIds.has(question.id)) {
-        continue;
-      }
-
-      // 检查三维度去重
-      const categoryUsed = usedCategories.has(question.category_id);
-      const subCategoryUsed = usedSubCategories.has(
-        question.sub_category_id ?? null,
-      );
-      const clusterUsed = usedClusters.has(question.cluster ?? null);
-
-      // 如果三个维度都未被使用，加入结果
-      if (!categoryUsed && !subCategoryUsed && !clusterUsed) {
-        selectedQuestions.push(question);
-        usedCategories.add(question.category_id);
-        usedSubCategories.add(question.sub_category_id ?? null);
-        usedClusters.add(question.cluster ?? null);
-      }
-    }
-
-    // 4. 如果固定的问题不够3个，从其他问题中随机选择补充
-    if (selectedQuestions.length < 3) {
-      // 获取所有未删除的问题
-      const allQuestions = await this.prisma.question.findMany({
-        where: {
-          deleted_at: null,
-        },
-        select: {
-          id: true,
-          title: true,
-          category_id: true,
-          sub_category_id: true,
-          cluster: true,
-          category: {
-            select: {
-              name: true,
-            },
-          },
-          sub_category: {
-            select: {
-              name: true,
-            },
-          },
-        },
-      });
-
-      // 获取已固定的问题ID集合
-      const fixedQuestionIds = new Set(
-        fixedQoDQuestions.map(f => f.question_id),
-      );
-
-      // 过滤候选问题：排除用户 pinned 的问题、已固定的问题、已选中的问题
-      const selectedQuestionIds = new Set(selectedQuestions.map(q => q.id));
-      const candidateQuestions = allQuestions.filter(
-        q =>
-          !pinnedQuestionIds.has(q.id) &&
-          !fixedQuestionIds.has(q.id) &&
-          !selectedQuestionIds.has(q.id),
-      );
-
-      // 如果没有候选问题，返回已选中的问题
-      if (candidateQuestions.length === 0) {
-        return selectedQuestions.map(q => ({
-          id: q.id,
-          title: q.title,
-          category: {
-            name: q.category.name,
-          },
-        }));
-      }
-
+    if (remainingCount > 0 && candidateQuestions.length > 0) {
       // 使用确定性随机排序（基于userId和今天的日期）
       const today = dayjs().format('YYYY-MM-DD');
       const seed = `${userId}_${today}`;
       const shuffledQuestions = this.seededShuffle(candidateQuestions, seed);
 
-      // 从随机排序的问题中选择，确保三维度去重
+      // 三维度去重选择：确保category、sub_category、cluster都不重复
       for (const question of shuffledQuestions) {
+        // 如果已经选够3个，退出循环
         if (selectedQuestions.length >= 3) {
           break;
         }
 
+        // 检查三个维度是否都未被使用
         const categoryUsed = usedCategories.has(question.category_id);
         const subCategoryUsed = usedSubCategories.has(
           question.sub_category_id ?? null,
@@ -758,12 +717,12 @@ export class OnboardService {
       }
     }
 
-    // 5. 返回结果，格式化为API响应格式（保持原有接口格式）
+    // 7. 返回结果，格式化为API响应格式（保持原有接口格式）
     return selectedQuestions.map(q => ({
       id: q.id,
       title: q.title,
       category: {
-        name: q.category.name,
+        name: (q.category as { name: string })?.name ?? '',
       },
     }));
   }

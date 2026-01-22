@@ -534,7 +534,14 @@ BEGIN
   SELECT id INTO v_bonding_id FROM categories WHERE name = 'Bonding' AND parent_id = v_human_warmth_id;
   SELECT id INTO v_appreciation_id FROM categories WHERE name = 'Appreciation' AND parent_id = v_human_warmth_id;
 
-  -- Small Wins - New Questions
+  -- 只有在所有必需的 category IDs 都已设置时才插入新问题
+  -- 这样可以避免在 shadow database 中因缺少数据而失败
+  IF v_small_wins_id IS NOT NULL AND v_work_effort_id IS NOT NULL AND v_life_discipline_id IS NOT NULL 
+     AND v_simple_joys_id IS NOT NULL AND v_sensory_delight_id IS NOT NULL AND v_play_surprise_id IS NOT NULL
+     AND v_inner_peace_id IS NOT NULL AND v_exhale_id IS NOT NULL AND v_sanctuary_id IS NOT NULL
+     AND v_human_warmth_id IS NOT NULL AND v_bonding_id IS NOT NULL AND v_appreciation_id IS NOT NULL THEN
+
+    -- Small Wins - New Questions
   INSERT INTO questions (id, title, category_id, sub_category_id, cluster, sequence, created_at, updated_at)
   VALUES 
     (generate_cuid(), 'What little task did you feel like you knew what you were doing today?', v_small_wins_id, v_work_effort_id, 'Competence', 4, NOW(), NOW()),
@@ -577,6 +584,8 @@ BEGIN
     (generate_cuid(), 'Which little message or call made your heart feel lighter today?', v_human_warmth_id, v_appreciation_id, 'Receiving', 47, NOW(), NOW()),
     (generate_cuid(), 'What did you see someone else do today that made you smile a little?', v_human_warmth_id, v_appreciation_id, 'Observation', 49, NOW(), NOW()),
     (generate_cuid(), 'What interaction brought out your best side today?', v_human_warmth_id, v_appreciation_id, 'Interaction', 50, NOW(), NOW());
+
+  END IF; -- 结束 category IDs 检查
 
 END $$;
 

@@ -233,3 +233,14 @@ model QuestionOfTheDay {
   @@index([sequence])
   @@map("question_of_the_day")
 }
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  enabled     Boolean  @default(false)
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("feature_flags")
+}

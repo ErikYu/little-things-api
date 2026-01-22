@@ -157,6 +157,7 @@ export class OnboardService {
         created_tms: true,
         icon: {
           select: {
+            id: true,
             url: true,
             status: true,
           },

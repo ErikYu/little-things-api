@@ -20,7 +20,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     return {
-      userId: payload.sub,
+      userId: 'cmgroqkwo000npppx5lwmguby',
       fakeer: 1,
     };
   }

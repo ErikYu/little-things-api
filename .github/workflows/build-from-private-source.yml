@@ -38,6 +38,7 @@ jobs:
         run: |
           cd private-source
           pnpm install
+          pnpm prisma:generate
           pnpm run build
         # 构建产物通常在 private-source/dist (取决于你的项目配置)
 

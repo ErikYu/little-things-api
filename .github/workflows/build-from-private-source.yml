@@ -97,13 +97,16 @@ jobs:
             
             # 清理临时文件
             rm -f ../build-artifacts.tar.gz
+
+            cp ../.env .env
+            cp ../ecosystem.config.js ./ecosystem.config.js
             
             # 如果需要安装生产依赖，取消下面的注释
             pnpm install
             
             # 如果需要运行数据库迁移，取消下面的注释
-            # pnpm prisma migrate deploy
+            pnpm prisma migrate deploy
             
             # 如果需要重启服务，取消下面的注释（根据你的实际服务管理方式调整）
-            # pm2 startOrGracefulReload LittleThings -a
+            pm2 startOrGracefulReload -a ./ecosystem.config.js
           EOF

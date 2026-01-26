@@ -119,14 +119,14 @@ jobs:
             mkdir -p "\$DEPLOY_TEMP"
             cd "\$DEPLOY_TEMP"
             
-            # 解压构建产物
-            tar -xzf ../../build-artifacts.tar.gz
+            # 解压构建产物（文件在上级目录）
+            tar -xzf ../build-artifacts.tar.gz
             
             # 清理临时文件
-            rm -f ../../build-artifacts.tar.gz
+            rm -f ../build-artifacts.tar.gz
 
-            cp ../../.env .env
-            cp ../../ecosystem.config.js ./ecosystem.config.js
+            cp ../.env .env
+            cp ../ecosystem.config.js ./ecosystem.config.js
             
             # 安装生产依赖
             echo "Installing production dependencies..."

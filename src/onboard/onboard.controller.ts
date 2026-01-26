@@ -3,6 +3,7 @@ import {
   Get,
   Param,
   Post,
+  Delete,
   Body,
   UseGuards,
   Request,
@@ -109,6 +110,17 @@ export class OnboardController {
       pageLimit,
       pageCursor,
     );
+  }
+
+  @ApiOperation({ summary: '删除回答' })
+  @Delete('answers/:id')
+  @UseGuards(AuthGuard('jwt'))
+  async deleteAnswer(
+    @Request() req: AuthenticatedRequest,
+    @Param('id') answerId: string,
+  ) {
+    const userId = req.user.userId;
+    return this.onboardService.deleteAnswer(userId, answerId);
   }
 
   @ApiOperation({ summary: '获取指定月份的日历视图数据' })

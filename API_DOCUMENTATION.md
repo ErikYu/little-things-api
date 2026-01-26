@@ -2,6 +2,10 @@
 
 ## Changelog
 
+### 2026-01-26
+
+- 新增 `DELETE /api/answers/:id` 接口：允许用户删除自己的回答
+
 ### 2026-01-20
 
 - 更新 `GET /api/calendar-view` 接口：响应中每个 reflection 的 `icon` 字段新增 `id` 字段
@@ -310,6 +314,25 @@ Authorization: Bearer <your-jwt-token>
     - 当 `status` 为 `GENERATED` 时，`url` 字段包含签名后的图标访问地址（有效期1小时）
     - 当 `status` 为 `PENDING` 或 `FAILED` 时，`url` 为空字符串
     - 如果答案没有关联的图标，`icon` 为 `null`
+
+#### 3.3 删除回答
+
+- **URL**: `DELETE /api/answers/:id`
+- **描述**: 删除指定的回答
+- **认证**: 需要
+- **路径参数**:
+  - `id`: 回答ID
+- **响应示例**:
+  ```json
+  {
+    "success": true,
+  }
+  ```
+- **错误响应**:
+  - 回答不存在：返回 `404 Not Found`
+  - 无权限删除（不是自己的回答）：返回 `403 Forbidden`
+- **说明**:
+  - 用户只能删除自己的回答
 
 ### 4. 问题管理
 

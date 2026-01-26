@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import dayjs from 'dayjs';
 import { IconService } from './icon.service';
+import { ForbiddenException } from '@nestjs/common';
 
 @Injectable()
 export class OnboardService {
@@ -133,10 +134,12 @@ export class OnboardService {
     const whereCondition: {
       user_id: string;
       question_id: string;
+      deleted_at: null;
       sequence?: { lt: number };
     } = {
       user_id: userId,
       question_id: questionId,
+      deleted_at: null,
     };
 
     // 如果有 cursor，添加 sequence 过滤条件
@@ -179,12 +182,14 @@ export class OnboardService {
         where: {
           user_id: userId,
           question_id: questionId,
+          deleted_at: null,
         },
       }),
       this.prisma.answer.findFirst({
         where: {
           user_id: userId,
           question_id: questionId,
+          deleted_at: null,
         },
         select: { created_at: true, created_ymd: true },
         orderBy: { sequence: 'asc' },
@@ -193,6 +198,7 @@ export class OnboardService {
         where: {
           user_id: userId,
           question_id: questionId,
+          deleted_at: null,
         },
         select: { created_at: true, created_ymd: true },
         orderBy: { sequence: 'desc' },
@@ -336,6 +342,7 @@ export class OnboardService {
           gte: startDate,
           lte: endDate,
         },
+        deleted_at: null,
       },
       include: {
         question: {
@@ -404,7 +411,10 @@ export class OnboardService {
   async getThreadView(userId: string) {
     // 1. 一次性获取所有答案（包含问题和 icon 信息）
     const allAnswers = await this.prisma.answer.findMany({
-      where: { user_id: userId },
+      where: {
+        user_id: userId,
+        deleted_at: null,
+      },
       select: {
         id: true,
         content: true,
@@ -734,5 +744,49 @@ export class OnboardService {
       data: { device_token: deviceToken },
     });
     return { device_token: deviceToken };
+  }
+
+  async deleteAnswer(userId: string, answerId: string) {
+    // 查找回答，确保存在且未删除
+    const answer = await this.prisma.answer.findFirst({
+      where: {
+        id: answerId,
+        deleted_at: null,
+      },
+      select: {
+        id: true,
+        user_id: true,
+        content: true,
+        created_ymd: true,
+        created_tms: true,
+      },
+    });
+
+    if (!answer) {
+      throw new NotFoundException('Answer not found');
+    }
+
+    // 验证回答是否属于当前用户
+    if (answer.user_id !== userId) {
+      throw new ForbiddenException(
+        'You do not have permission to delete this answer',
+      );
+    }
+
+    // 执行软删除
+    const deletedAnswer = await this.prisma.answer.update({
+      where: { id: answerId },
+      data: {
+        deleted_at: new Date(),
+      },
+      select: {
+        id: true,
+        content: true,
+        created_ymd: true,
+        created_tms: true,
+      },
+    });
+
+    return deletedAnswer;
   }
 }

@@ -79,11 +79,38 @@ jobs:
             ${ECS_USER}@${ECS_HOST}:${ECS_DEPLOY_PATH}/build-artifacts.tar.gz
           
           # 在 ECS 上解压并部署
-          ssh -o StrictHostKeyChecking=no ${ECS_USER}@${ECS_HOST} bash << EOF
-            node -v
-            npm -v
-            pnpm -v
+          # 使用 bash -l 启动登录 shell，自动加载所有环境变量（包括 ~/.bashrc）
+          ssh -o StrictHostKeyChecking=no ${ECS_USER}@${ECS_HOST} bash -l << EOF
             set -e
+            
+            # 显式加载 bashrc（确保环境变量已加载）
+            if [ -f ~/.bashrc ]; then
+              source ~/.bashrc
+            fi
+            if [ -f ~/.bash_profile ]; then
+              source ~/.bash_profile
+            fi
+            if [ -f ~/.profile ]; then
+              source ~/.profile
+            fi
+            
+            # 验证环境
+            echo "=== Environment Check ==="
+            echo "Node version: \$(node -v)"
+            echo "npm version: \$(npm -v)"
+            echo "PATH: \$PATH"
+            echo "pnpm path: \$(which pnpm || echo 'pnpm not found in PATH')"
+            
+            # 检查 pnpm 是否可用
+            if ! command -v pnpm &> /dev/null; then
+              echo "❌ Error: pnpm command not found!"
+              echo "Please ensure pnpm is installed and added to PATH in ~/.bashrc"
+              exit 1
+            fi
+            
+            echo "pnpm version: \$(pnpm -v)"
+            echo "=== Environment Check Complete ==="
+            
             cd ${ECS_DEPLOY_PATH}
             
             # 备份旧版本（如果存在）
@@ -104,7 +131,7 @@ jobs:
             cp ../.env .env
             cp ../ecosystem.config.js ./ecosystem.config.js
             
-            # 如果需要安装生产依赖，取消下面的注释
+            # 安装生产依赖
             pnpm install
             
             # 如果需要运行数据库迁移，取消下面的注释

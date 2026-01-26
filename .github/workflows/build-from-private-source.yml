@@ -113,30 +113,51 @@ jobs:
             
             cd ${ECS_DEPLOY_PATH}
             
-            # 备份旧版本（如果存在）
-            if [ -d "app" ]; then
-              mv app app.backup.\$(date +%Y%m%d_%H%M%S)
-            fi
-            
-            # 创建新的部署目录
-            mkdir -p app
-            cd app
+            # 部署到临时目录，避免影响正在运行的服务
+            DEPLOY_TEMP="app.new.\$(date +%Y%m%d_%H%M%S)"
+            mkdir -p "\$DEPLOY_TEMP"
+            cd "\$DEPLOY_TEMP"
             
             # 解压构建产物
-            tar -xzf ../build-artifacts.tar.gz
+            tar -xzf ../../build-artifacts.tar.gz
             
             # 清理临时文件
-            rm -f ../build-artifacts.tar.gz
+            rm -f ../../build-artifacts.tar.gz
 
-            cp ../.env .env
-            cp ../ecosystem.config.js ./ecosystem.config.js
+            cp ../../.env .env
+            cp ../../ecosystem.config.js ./ecosystem.config.js
             
             # 安装生产依赖
+            echo "Installing production dependencies..."
             pnpm install
             
-            # 如果需要运行数据库迁移，取消下面的注释
+            # 运行数据库迁移
+            echo "Running database migration..."
             pnpm prisma migrate deploy
             
-            # 如果需要重启服务，取消下面的注释（根据你的实际服务管理方式调整）
+            # 回到部署目录
+            cd ${ECS_DEPLOY_PATH}
+            
+            # 备份旧版本（排除 node_modules），仅在存在时备份
+            if [ -d "app" ]; then
+              BACKUP_NAME="app.backup.\$(date +%Y%m%d_%H%M%S)"
+              mkdir -p "\$BACKUP_NAME"
+              # 使用 rsync 复制，排除 node_modules
+              rsync -av --exclude='node_modules' --exclude='.pnpm-store' app/ "\$BACKUP_NAME/"
+              echo "✅ Backup created: \$BACKUP_NAME (excluding node_modules)"
+            fi
+            
+            # 原子性切换：重命名旧目录（如果存在），然后重命名新目录为 app
+            if [ -d "app" ]; then
+              mv app app.old.\$(date +%Y%m%d_%H%M%S)
+            fi
+            mv "\$DEPLOY_TEMP" app
+            
+            cd app
             pm2 startOrGracefulReload -a ./ecosystem.config.js
+            
+            # 清理旧的临时目录（保留最新的几个备份）
+            cd ${ECS_DEPLOY_PATH}
+            ls -dt app.old.* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
+            ls -dt app.backup.* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
           EOF

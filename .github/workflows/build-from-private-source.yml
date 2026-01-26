@@ -80,6 +80,9 @@ jobs:
           
           # 在 ECS 上解压并部署
           ssh -o StrictHostKeyChecking=no ${ECS_USER}@${ECS_HOST} bash << EOF
+            node -v
+            npm -v
+            pnpm -v
             set -e
             cd ${ECS_DEPLOY_PATH}
             

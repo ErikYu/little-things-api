@@ -1,0 +1,109 @@
+name: Build from Private Source
+
+on:
+  repository_dispatch:
+    types: [trigger-build] 
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Private Repo
+        uses: actions/checkout@v4
+        with:
+          repository: ErikYu/little-things
+          token: ${{ secrets.ACCESS_TOKEN }}
+          path: private-source
+          ref: main 
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          # 【重要】因为代码在 private-source 子目录下，必须指定 lock 文件位置
+          # 否则 setup-node 找不到 pnpm-lock.yaml 会导致缓存失败
+          cache-dependency-path: private-source/pnpm-lock.yaml
+
+      # 4. 构建
+      - name: Install and Build
+        run: |
+          cd private-source
+          pnpm install
+          pnpm run build
+        # 构建产物通常在 private-source/dist (取决于你的项目配置)
+
+      # 5. 打包构建产物
+      - name: Package Build Artifacts
+        run: |
+          cd private-source
+          tar -czf build-artifacts.tar.gz \
+            package.json \
+            pnpm-lock.yaml \
+            prisma.config.ts \
+            prisma/ \
+            dist/
+
+      # 6. 上传构建产物到 GitHub Artifacts (可选，用于备份)
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: private-source/build-artifacts.tar.gz
+          retention-days: 30
+
+      # 7. 配置 SSH
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.ECS_SSH_KEY }}
+
+      # 8. 部署到阿里云 ECS
+      - name: Deploy to Alibaba Cloud ECS
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_DEPLOY_PATH: ${{ secrets.ECS_DEPLOY_PATH || '/tmp' }}
+        run: |
+          # 上传打包文件到 ECS
+          scp -o StrictHostKeyChecking=no \
+            private-source/build-artifacts.tar.gz \
+            ${ECS_USER}@${ECS_HOST}:${ECS_DEPLOY_PATH}/build-artifacts.tar.gz
+          
+          # 在 ECS 上解压并部署
+          ssh -o StrictHostKeyChecking=no ${ECS_USER}@${ECS_HOST} bash << EOF
+            set -e
+            cd ${ECS_DEPLOY_PATH}
+            
+            # 备份旧版本（如果存在）
+            if [ -d "app" ]; then
+              mv app app.backup.\$(date +%Y%m%d_%H%M%S)
+            fi
+            
+            # 创建新的部署目录
+            mkdir -p app
+            cd app
+            
+            # 解压构建产物
+            tar -xzf ../build-artifacts.tar.gz
+            
+            # 清理临时文件
+            rm -f ../build-artifacts.tar.gz
+            
+            # 如果需要安装生产依赖，取消下面的注释
+            pnpm install
+            
+            # 如果需要运行数据库迁移，取消下面的注释
+            # pnpm prisma migrate deploy
+            
+            # 如果需要重启服务，取消下面的注释（根据你的实际服务管理方式调整）
+            # pm2 startOrGracefulReload LittleThings -a
+          EOF

@@ -2,13 +2,13 @@ name: Build from Private Source
 
 on:
   repository_dispatch:
-    types: [trigger-build] 
+    types: [trigger-build]
   workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Private Repo
         uses: actions/checkout@v4
@@ -16,7 +16,7 @@ jobs:
           repository: ErikYu/little-things
           token: ${{ secrets.ACCESS_TOKEN }}
           path: private-source
-          ref: main 
+          ref: main
 
       - name: Install pnpm
         uses: pnpm/action-setup@v3
@@ -27,8 +27,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          cache: 'pnpm'
+          node-version: "24"
+          cache: "pnpm"
           # 【重要】因为代码在 private-source 子目录下，必须指定 lock 文件位置
           # 否则 setup-node 找不到 pnpm-lock.yaml 会导致缓存失败
           cache-dependency-path: private-source/pnpm-lock.yaml
@@ -78,7 +78,7 @@ jobs:
           scp -o StrictHostKeyChecking=no \
             private-source/build-artifacts.tar.gz \
             ${ECS_USER}@${ECS_HOST}:${ECS_DEPLOY_PATH}/build-artifacts.tar.gz
-          
+
           # 在 ECS 上解压并部署
           # 使用 bash -l 启动登录 shell，自动加载所有环境变量（包括 ~/.bashrc）
           ssh -o StrictHostKeyChecking=no ${ECS_USER}@${ECS_HOST} bash -l << EOF
@@ -127,6 +127,7 @@ jobs:
 
             cp ../.env .env
             cp ../ecosystem.config.js ./ecosystem.config.js
+            cp -r ../cert ./cert
             
             # 安装生产依赖
             echo "Installing production dependencies..."

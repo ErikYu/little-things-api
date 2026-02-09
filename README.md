@@ -2,6 +2,10 @@
 
 ## Changelog
 
+### 2026-02-09
+
+- 新增 `GET /api/qod-strategy-options` 接口：获取可用的 QoD 策略选项，包含策略描述、禁用状态和 `url` 字段（用于策略 icon）
+
 ### 2026-02-03
 
 - 更新 `GET /api/categories` 接口：响应中每个分类新增 `image_url` 字段
@@ -242,6 +246,46 @@ Authorization: Bearer <your-jwt-token>
   - **RANDOM**：沿用当前 QoD 逻辑（固定 QoD 表 + 随机候选补足到 3 题，排除用户已 pin 的题）
   - **PINNED**：每天三个问题都来自用户自己 pin 的题目（不足 3 题则返回实际数量）
   - **MIXED**：二者兼有之（部分来自用户 pinned，部分来自当前 QoD 逻辑，共 3 题）
+
+#### 1.7 获取 QoD 策略选项
+
+- **URL**: `GET /api/qod-strategy-options`
+- **描述**: 获取可用的「今日问题」策略选项，包含策略描述和可用性状态
+- **认证**: 需要
+- **响应示例**:
+  ```json
+  [
+    {
+      "value": "RANDOM",
+      "label": "Random",
+      "description": "Prompt randomly from question library",
+      "disabled": false,
+      "url": null
+    },
+    {
+      "value": "PINNED",
+      "label": "Pinned",
+      "description": "Only prompt from pinned questions",
+      "disabled": true,
+      "url": null
+    },
+    {
+      "value": "MIXED",
+      "label": "Mixed",
+      "description": "Prompt from pinned questions & library",
+      "disabled": true,
+      "url": null
+    }
+  ]
+  ```
+- **说明**:
+  - `value` 和 `label`：策略的枚举值
+  - `description`：策略的中文描述
+  - `url`：策略 icon 的 URL（暂无则为 `null`）
+  - `disabled`：是否禁用该选项
+    - `RANDOM`：始终可用 (`disabled: false`)
+    - `PINNED` 和 `MIXED`：仅当用户至少有一个星标问题时可用
+  - 前端可根据 `disabled` 字段决定是否禁用相应选项
 
 #### 1.7 获取个人信息
 

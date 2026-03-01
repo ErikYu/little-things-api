@@ -2,6 +2,10 @@
 
 ## Changelog
 
+### 2026-03-01
+
+- 新增 `GET /api/weekly-report` 接口：读取周报（仅读库，不触发生成）。可选查询参数 `week`（YYYY-Wnn），不传则返回当前用户最新一条；返回 `report_json`、`icons`（带签名 URL）及 `period_start`、`period_end`。
+
 ### 2026-02-09
 
 - 新增 `GET /api/qod-strategy-options` 接口：获取可用的 QoD 策略选项，包含策略描述、禁用状态和 `url` 字段（用于策略 icon）
@@ -243,9 +247,9 @@ Authorization: Bearer <your-jwt-token>
   }
   ```
 - **说明**:
-  - **RANDOM**：沿用当前 QoD 逻辑（固定 QoD 表 + 随机候选补足到 3 题，排除用户已 pin 的题）
-  - **PINNED**：每天三个问题都来自用户自己 pin 的题目（不足 3 题则返回实际数量）
-  - **MIXED**：二者兼有之（部分来自用户 pinned，部分来自当前 QoD 逻辑，共 3 题）
+  - **RANDOM**：沿用当前 QoD 逻辑（固定 QoD 表 + 随机候选补足到 3 题；不排除用户已 pinned 的题）
+  - **PINNED**：仅从用户 pinned 题目中返回（需要至少 3 个 pinned 才可选）
+  - **MIXED**：1 题来自 pinned，2 题来自随机（随机部分不包含 pinned；需要至少 1 个 pinned 才可选）
 
 #### 1.7 获取 QoD 策略选项
 
@@ -260,28 +264,32 @@ Authorization: Bearer <your-jwt-token>
       "label": "Random",
       "description": "Prompt randomly from question library",
       "disabled": false,
-      "url": null
+      "url": "https://little-things-app.oss-cn-shanghai.aliyuncs.com/qod-strategy/random.svg?OSSAccessKeyId=***&Expires=***&Signature=***"
     },
     {
       "value": "PINNED",
       "label": "Pinned",
       "description": "Only prompt from pinned questions",
       "disabled": true,
-      "url": null
+      "url": "https://little-things-app.oss-cn-shanghai.aliyuncs.com/qod-strategy/Star.svg?OSSAccessKeyId=***&Expires=***&Signature=***"
     },
     {
       "value": "MIXED",
       "label": "Mixed",
       "description": "Prompt from pinned questions & library",
       "disabled": true,
-      "url": null
+      "url": "https://little-things-app.oss-cn-shanghai.aliyuncs.com/qod-strategy/combine.svg?OSSAccessKeyId=***&Expires=***&Signature=***"
     }
   ]
   ```
 - **说明**:
   - `value` 和 `label`：策略的枚举值
   - `description`：策略的中文描述
-  - `url`：策略 icon 的 URL（暂无则为 `null`）
+  - `url`：策略 icon 的 OSS 签名 URL（暂无则为 `null`）
+  - `disabled`：
+    - `RANDOM`：始终可用
+    - `MIXED`：需要至少 1 个 pinned 问题
+    - `PINNED`：需要至少 3 个 pinned 问题
   - `disabled`：是否禁用该选项
     - `RANDOM`：始终可用 (`disabled: false`)
     - `PINNED` 和 `MIXED`：仅当用户至少有一个星标问题时可用
@@ -762,6 +770,44 @@ Authorization: Bearer <your-jwt-token>
     ]
   }
   ```
+
+#### 5.3 读取周报
+
+- **URL**: `GET /api/weekly-report`
+- **描述**: 读取已生成的周报（仅读库，不触发生成）。返回结构化内容 `report_json`、参与该周报的图标列表 `icons`（带签名 URL），以及报告周期的开始/结束日期。
+- **认证**: 需要
+- **查询参数**:
+  - `week`: 周标识（可选）。格式为 `YYYY-Wnn`（如 `2024-W43`）。不传则返回当前用户**最新一条**周报；传入则返回该周的报告。
+- **响应示例**:
+  ```json
+  {
+    "id": "cludreport123456789",
+    "week": "2024-W43",
+    "period_start": "2024-10-21",
+    "period_end": "2024-10-27",
+    "reflection_count": 9,
+    "report_json": {
+      "summary": "这一周你记录了 9 次反思...",
+      "momentToReveal": "周三那杯咖啡与朋友的对话...",
+      "analyticalOverview": [
+        { "title": "咖啡与专注", "content": "Coffee is your reliable focus trigger..." },
+        { "title": "人际联结", "content": "..." },
+        { "title": "情绪基调", "content": "..." }
+      ]
+    },
+    "icons": [
+      { "id": "cludicon123456789", "url": "https://..." },
+      { "id": "cludicon098765432", "url": "https://..." }
+    ]
+  }
+  ```
+- **错误响应**:
+  - 无报告（不传 week 时该用户没有任何报告，或传 week 时该周无记录）：返回 `404 Not Found`
+  - 传了 `week` 但格式错误（非 `YYYY-Wnn`）：返回 `400 Bad Request`
+- **说明**:
+  - 周报由后台或 admin 侧生成并写入库，本接口仅读取，不调用 AI 生成
+  - `report_json` 可能为 `null`（例如报告尚未生成完仅有 Tier1 时），`icons` 仍会返回
+  - `icons` 中 `url` 为签名后的可访问地址
 
 ### 6. 图标生成
 

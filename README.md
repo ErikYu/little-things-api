@@ -26,7 +26,7 @@
 - 新增用户 QoD 策略（Question of the Day 策略）：用户拥有 `qod_strategy` 字段，枚举为 `RANDOM`、`PINNED`、`MIXED`，默认 `RANDOM`
 - 新增 `POST /api/qod-strategy` 接口：用户修改自己的 QoD 策略（需登录）
 - 更新 `GET /api/questions-of-the-day` 接口：返回结果由用户的 `qod_strategy` 决定（RANDOM：当前 QoD 逻辑；PINNED：仅来自用户 pin 的题目；MIXED：二者兼有）
-- 新增 `GET /api/me` 接口：获取当前用户个人信息（需登录），返回 `qod_strategy`、`last_login_at`、`has_pinned_question`
+- 新增 `GET /api/me` 接口：获取当前用户个人信息（需登录），返回 `email`、`qod_strategy`、`last_login_at`、`has_pinned_question`、`report_persona_id`、`report_persona`
 
 ### 2026-01-26
 
@@ -314,16 +314,25 @@ Authorization: Bearer <your-jwt-token>
   {
     "success": true,
     "data": {
+      "email": "user@example.com",
       "qod_strategy": "RANDOM",
       "last_login_at": "2026-02-03T08:00:00.000Z",
-      "has_pinned_question": true
+      "has_pinned_question": true,
+      "report_persona_id": "cludpersona123456789",
+      "report_persona": {
+        "id": "cludpersona123456789",
+        "label": "Persona 1: The Soul Gardener"
+      }
     }
   }
   ```
 - **说明**:
+  - `email`：用户邮箱（可能为 null）
   - `qod_strategy`：用户的「今日问题」策略，取值为 `RANDOM`、`PINNED`、`MIXED`
   - `last_login_at`：最后登录时间，ISO 8601 格式
   - `has_pinned_question`：当前用户是否至少 pin 了一道题（boolean）
+  - `report_persona_id`：当前选中的周报 AI Persona 的 id，未选时为 `null`
+  - `report_persona`：当前选中的 Persona 摘要（`id`、`label`），未选时为 `null`。可用于前端展示当前选中项，完整列表见 `GET /api/ai-insights/personas`
 
 ### 2. 引导页面
 

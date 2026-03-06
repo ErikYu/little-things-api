@@ -2,6 +2,15 @@
 
 ## Changelog
 
+### 2026-03-06
+
+- 新增 `GET /api/ai-insights/personas` 接口：获取 Report Persona 列表
+- 新增 `POST /api/ai-insights/report-persona` 接口：更新当前用户的 Report Persona
+
+### 2026-03-03
+
+- 新增 `GET /api/weekly-reports` 接口：获取周报列表，支持分页（limit、cursor）
+
 ### 2026-03-01
 
 - 新增 `GET /api/weekly-report` 接口：读取周报（仅读库，不触发生成）。可选查询参数 `week`（YYYY-Wnn），不传则返回当前用户最新一条；返回 `report_json`、`icons`（带签名 URL）及 `period_start`、`period_end`。
@@ -809,9 +818,87 @@ Authorization: Bearer <your-jwt-token>
   - `report_json` 可能为 `null`（例如报告尚未生成完仅有 Tier1 时），`icons` 仍会返回
   - `icons` 中 `url` 为签名后的可访问地址
 
-### 6. 图标生成
+#### 5.4 获取周报列表
 
-#### 6.1 获取图标生成进度
+- **URL**: `GET /api/weekly-reports`
+- **描述**: 分页获取当前用户的周报列表，返回简要信息，适合列表展示。
+- **认证**: 需要
+- **查询参数**:
+  - `limit`: 每页数量（可选，默认 20，最大 100）
+  - `cursor`: 周标识（可选）。格式 `YYYY-Wnn`。传入则返回该周之前的报告，用于分页
+- **响应示例**:
+  ```json
+  {
+    "reports": [
+      {
+        "id": "cludreport123456789",
+        "week": "2024-W43",
+        "period_start": "2024-10-21",
+        "period_end": "2024-10-27",
+        "reflection_count": 9
+      }
+    ],
+    "pagination": {
+      "limit": 20,
+      "hasMore": true,
+      "nextCursor": "2024-W36"
+    }
+  }
+  ```
+- **说明**:
+  - 按 week 降序返回（最新在前）
+  - 获取单条周报详情请使用 `GET /api/weekly-report?week=YYYY-Wnn`
+
+### 6. AI Insights
+
+#### 6.1 获取 Report Persona 列表
+
+- **URL**: `GET /api/ai-insights/personas`
+- **描述**: 获取所有可用的 Report Persona 选项，供前端选择
+- **认证**: 需要
+- **响应示例**:
+  ```json
+  [
+    {
+      "id": "cludpersona123456789",
+      "label": "Empathetic Friend",
+      "description": "A warm and supportive tone that focuses on emotional connection"
+    },
+    {
+      "id": "cludpersona098765432",
+      "label": "Analytical Coach",
+      "description": "A structured and insightful tone that focuses on patterns and growth"
+    }
+  ]
+  ```
+- **说明**:
+  - 按 `label` 字母升序排列
+  - `description` 可能为 `null`
+
+#### 6.2 更新 Report Persona
+
+- **URL**: `POST /api/ai-insights/report-persona`
+- **描述**: 更新当前用户的 Report Persona（影响周报生成风格）
+- **认证**: 需要
+- **请求参数**:
+  ```json
+  {
+    "report_persona_id": "cludpersona123456789"
+  }
+  ```
+- **响应示例**:
+  ```json
+  {
+    "report_persona_id": "cludpersona123456789"
+  }
+  ```
+- **错误响应**:
+  - `report_persona_id` 未提供：返回 `400 Bad Request`
+  - `report_persona_id` 无效（不存在）：返回 `400 Bad Request`
+
+### 7. 图标生成
+
+#### 7.1 获取图标生成进度
 
 - **URL**: `GET /api/icon/progress/:iconId`
 - **描述**: 通过 Server-Sent Events (SSE) 获取图标生成进度

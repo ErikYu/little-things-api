@@ -2,6 +2,13 @@
 
 ## Changelog
 
+### 2026-03-18
+
+- 新增 `GET /api/weekly-report/current` 接口：获取当前用户当周已生成的 icon 列表（按 icon `created_at` 升序）
+- 更新 `GET /api/weekly-report` 接口：响应新增 `read_at` 字段；读取详情时会自动标记该周报为已读（写入 `read_at`）
+- 更新 `GET /api/weekly-reports` 接口：列表项新增 `read_at` 字段（`null` 表示未读）
+- 新增 `POST /api/weekly-report/read` 接口：显式标记指定周报为已读（幂等）
+
 ### 2026-03-06
 
 - 新增 `GET /api/ai-insights/personas` 接口：获取 Report Persona 列表
@@ -792,7 +799,7 @@ Authorization: Bearer <your-jwt-token>
 #### 5.3 读取周报
 
 - **URL**: `GET /api/weekly-report`
-- **描述**: 读取已生成的周报（仅读库，不触发生成）。返回结构化内容 `report_json`、参与该周报的图标列表 `icons`（带签名 URL），以及报告周期的开始/结束日期。
+- **描述**: 读取已生成的周报（仅读库，不触发生成）。返回结构化内容 `report_json`、参与该周报的图标列表 `icons`（带签名 URL），以及报告周期的开始/结束日期。若该周报尚未阅读，会在读取时自动标记为已读并写入 `read_at`。
 - **认证**: 需要
 - **查询参数**:
   - `week`: 周标识（可选）。格式为 `YYYY-Wnn`（如 `2024-W43`）。不传则返回当前用户**最新一条**周报；传入则返回该周的报告。
@@ -804,9 +811,14 @@ Authorization: Bearer <your-jwt-token>
     "period_start": "2024-10-21",
     "period_end": "2024-10-27",
     "reflection_count": 9,
+    "read_at": "2026-03-18T03:20:00.000Z",
     "report_json": {
       "summary": "这一周你记录了 9 次反思...",
-      "momentToReveal": "周三那杯咖啡与朋友的对话...",
+      "gem": {
+        "scene": "On Wednesday afternoon, you sat by the window with a freshly brewed coffee in your hands.",
+        "evidence": "'At that moment, I suddenly relaxed and felt the day was not as bad as I thought.'",
+        "insight": "In that moment, you must have felt a quiet sense of being held by something small but steady."
+      },
       "analyticalOverview": [
         { "title": "咖啡与专注", "content": "Coffee is your reliable focus trigger..." },
         { "title": "人际联结", "content": "..." },
@@ -826,6 +838,7 @@ Authorization: Bearer <your-jwt-token>
   - 周报由后台或 admin 侧生成并写入库，本接口仅读取，不调用 AI 生成
   - `report_json` 可能为 `null`（例如报告尚未生成完仅有 Tier1 时），`icons` 仍会返回
   - `icons` 中 `url` 为签名后的可访问地址
+  - `read_at`：`null` 表示未读，非 `null` 表示已读时间（ISO 8601）
 
 #### 5.4 获取周报列表
 
@@ -835,6 +848,7 @@ Authorization: Bearer <your-jwt-token>
 - **查询参数**:
   - `limit`: 每页数量（可选，默认 20，最大 100）
   - `cursor`: 周标识（可选）。格式 `YYYY-Wnn`。传入则返回该周之前的报告，用于分页
+  - `isRead`: 读状态筛选（可选）。`true` 仅返回已读（`read_at != null`），`false` 仅返回未读（`read_at = null`）；不传则返回全部
 - **响应示例**:
   ```json
   {
@@ -844,7 +858,8 @@ Authorization: Bearer <your-jwt-token>
         "week": "2024-W43",
         "period_start": "2024-10-21",
         "period_end": "2024-10-27",
-        "reflection_count": 9
+        "reflection_count": 9,
+        "read_at": null
       }
     ],
     "pagination": {
@@ -856,7 +871,33 @@ Authorization: Bearer <your-jwt-token>
   ```
 - **说明**:
   - 按 week 降序返回（最新在前）
+  - `read_at`：`null` 表示未读，非 `null` 表示已读时间（ISO 8601）
+  - 示例：
+    - `GET /api/weekly-reports?isRead=false`：仅未读
+    - `GET /api/weekly-reports?isRead=true`：仅已读
   - 获取单条周报详情请使用 `GET /api/weekly-report?week=YYYY-Wnn`
+
+#### 5.5 标记周报已读
+
+- **URL**: `POST /api/weekly-report/read`
+- **描述**: 显式将指定周报标记为已读（幂等）。若此前已读，则返回原有 `read_at`。
+- **认证**: 需要
+- **请求参数**:
+  ```json
+  {
+    "week": "2024-W43"
+  }
+  ```
+- **响应示例**:
+  ```json
+  {
+    "week": "2024-W43",
+    "read_at": "2026-03-18T03:20:00.000Z"
+  }
+  ```
+- **错误响应**:
+  - `week` 缺失或格式错误（非 `YYYY-Wnn`）：返回 `400 Bad Request`
+  - 该周报不存在：返回 `404 Not Found`
 
 ### 6. AI Insights
 
@@ -904,6 +945,40 @@ Authorization: Bearer <your-jwt-token>
 - **错误响应**:
   - `report_persona_id` 未提供：返回 `400 Bad Request`
   - `report_persona_id` 无效（不存在）：返回 `400 Bad Request`
+
+#### 6.3 获取当周已生成图标
+
+- **URL**: `GET /api/weekly-report/current`
+- **描述**: 获取当前用户本周已生成完成（`GENERATED`）的 icon 列表
+- **认证**: 需要
+- **响应示例**:
+  ```json
+  {
+    "minAnswersToGenerateReport": 6,
+    "icons": [
+      {
+        "id": "cludicon123456789",
+        "answer_id": "cludanswer123456789",
+        "created_ymd": "2026-03-16",
+        "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx"
+      },
+      {
+        "id": "cludicon987654321",
+        "answer_id": "cludanswer987654321",
+        "created_ymd": "2026-03-17",
+        "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon987654321-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx"
+      }
+    ]
+  }
+  ```
+- **说明**:
+  - `minAnswersToGenerateReport`：生成周报所需的最少 answer 数（当前为 6）
+  - 仅返回状态为 `GENERATED` 的 icon
+  - 仅统计当前用户、且 answer 未软删除（`deleted_at = null`）
+  - 仅返回当前周范围内（基于 answer 的 `created_ymd`）的数据
+  - 返回结果按 icon 的 `created_at` 升序（最早生成在前）
+  - `url` 为签名后的可访问地址
+  - 无数据时返回 `{ "minAnswersToGenerateReport": 6, "icons": [] }`
 
 ### 7. 图标生成
 

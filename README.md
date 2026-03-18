@@ -5,9 +5,9 @@
 ### 2026-03-18
 
 - 新增 `GET /api/weekly-report/current` 接口：获取当前用户当周已生成的 icon 列表（按 icon `created_at` 升序）
-- 更新 `GET /api/weekly-report` 接口：响应新增 `read_at` 字段；读取详情时会自动标记该周报为已读（写入 `read_at`）
+- 更新 `GET /api/weekly-report` 接口：响应新增 `read_at` 字段；
 - 更新 `GET /api/weekly-reports` 接口：列表项新增 `read_at` 字段（`null` 表示未读）
-- 新增 `POST /api/weekly-report/read` 接口：显式标记指定周报为已读（幂等）
+- 新增 `POST /api/weekly-report/read` 接口：显式标记指定周报为已读
 
 ### 2026-03-06
 

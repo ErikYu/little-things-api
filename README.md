@@ -2,6 +2,18 @@
 
 ## Changelog
 
+### 2026-04-05
+
+- 新增 `POST /api/timezone` 接口：保存用户时区，用于按本地时间推送每日提醒（Daily Whisper）
+
+### 2026-03-28
+
+- 新增 `POST /api/auth/google` 接口：Google SSO 登录
+
+### 2026-03-22
+
+- 更新 `GET /api/weekly-reports` 接口：列表项新增 `summary` 与 `icon` 字段，便于列表直接展示周报摘要和封面 icon
+
 ### 2026-03-18
 
 - 新增 `GET /api/weekly-report/current` 接口：获取当前用户当周已生成的 icon 列表（按 icon `created_at` 升序）
@@ -133,7 +145,37 @@ Authorization: Bearer <your-jwt-token>
 - **说明**:
   - `user.qod_strategy` 为用户的「今日问题」策略，取值为 `RANDOM`、`PINNED`、`MIXED`
 
-#### 1.2 邮箱登录
+#### 1.2 Google 登录
+
+- **URL**: `POST /api/auth/google`
+- **描述**: 使用 Google ID Token 登录（首次登录自动注册）
+- **请求参数**:
+  ```json
+  {
+    "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg..."
+  }
+  ```
+- **响应示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "user": {
+        "id": "clud1234567890abcdef",
+        "email": "user@gmail.com",
+        "qod_strategy": "RANDOM"
+      }
+    }
+  }
+  ```
+- **说明**:
+  - `idToken` 由客户端通过 Google Sign-In SDK 获取
+  - 首次登录时自动创建用户，已有账号则更新 `last_login_at`
+  - `user.qod_strategy` 取值为 `RANDOM`、`PINNED`、`MIXED`
+
+#### 1.3 邮箱登录
 
 - **URL**: `POST /api/auth/login`
 - **描述**: 使用邮箱和密码登录
@@ -238,7 +280,32 @@ Authorization: Bearer <your-jwt-token>
   }
   ```
 
-#### 1.6 更新 QoD 策略
+#### 1.6 保存用户时区
+
+- **URL**: `POST /api/timezone`
+- **描述**: 接收一个带 UTC 偏移的 ISO 8601 时间戳，解析其中的时区偏移并存储到用户记录中，用于后续按本地时间推送每日提醒（Daily Whisper）
+- **认证**: 需要
+- **请求参数**:
+  ```json
+  {
+    "timestamp": "2026-04-05T09:00:00+08:00"
+  }
+  ```
+  - `timestamp`：必填，ISO 8601 格式，必须包含 UTC 偏移（如 `+08:00`、`-05:00`、`+00:00`）
+- **响应示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "timezone": "+08:00"
+    }
+  }
+  ```
+- **错误响应**:
+  - `timestamp` 缺失：返回 `400 Bad Request`
+  - `timestamp` 不含 UTC 偏移：返回 `400 Bad Request`
+
+#### 1.7 更新 QoD 策略
 
 - **URL**: `POST /api/qod-strategy`
 - **描述**: 用户修改自己的「今日问题」策略（Question of the Day 策略），仅能修改当前登录用户自己的配置
@@ -267,7 +334,7 @@ Authorization: Bearer <your-jwt-token>
   - **PINNED**：仅从用户 pinned 题目中返回（需要至少 3 个 pinned 才可选）
   - **MIXED**：1 题来自 pinned，2 题来自随机（随机部分不包含 pinned；需要至少 1 个 pinned 才可选）
 
-#### 1.7 获取 QoD 策略选项
+#### 1.8 获取 QoD 策略选项
 
 - **URL**: `GET /api/qod-strategy-options`
 - **描述**: 获取可用的「今日问题」策略选项，包含策略描述和可用性状态
@@ -311,7 +378,7 @@ Authorization: Bearer <your-jwt-token>
     - `PINNED` 和 `MIXED`：仅当用户至少有一个星标问题时可用
   - 前端可根据 `disabled` 字段决定是否禁用相应选项
 
-#### 1.7 获取个人信息
+#### 1.9 获取个人信息
 
 - **URL**: `GET /api/me`
 - **描述**: 获取当前登录用户的个人信息
@@ -859,7 +926,12 @@ Authorization: Bearer <your-jwt-token>
         "period_start": "2024-10-21",
         "period_end": "2024-10-27",
         "reflection_count": 9,
-        "read_at": null
+        "read_at": null,
+        "summary": "You found calm in small routines and meaningful connections this week.",
+        "icon": {
+          "id": "cludicon123456789",
+          "url": "https://..."
+        }
       }
     ],
     "pagination": {
@@ -872,6 +944,8 @@ Authorization: Bearer <your-jwt-token>
 - **说明**:
   - 按 week 降序返回（最新在前）
   - `read_at`：`null` 表示未读，非 `null` 表示已读时间（ISO 8601）
+  - `summary`：来自该周报 `report_json.summary`，当报告内容未完成时可能为 `null`
+  - `icon`：该周报首个 icon 的签名地址（`{ id, url }`）；无 icon 时为 `null`
   - 示例：
     - `GET /api/weekly-reports?isRead=false`：仅未读
     - `GET /api/weekly-reports?isRead=true`：仅已读

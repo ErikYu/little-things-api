@@ -2,6 +2,11 @@
 
 ## Changelog
 
+### 2026-04-08
+
+- 新增 `POST /api/me` 接口：更新当前用户昵称（需登录）；请求体可选 `nickname` 字段，不传（如 `{}`）表示不修改
+- 更新 `GET /api/me` 接口：响应新增 `nickname` 字段
+
 ### 2026-04-05
 
 - 新增 `POST /api/timezone` 接口：保存用户时区，用于按本地时间推送每日提醒（Daily Whisper）
@@ -389,6 +394,7 @@ Authorization: Bearer <your-jwt-token>
     "success": true,
     "data": {
       "email": "user@example.com",
+      "nickname": "Yuyi",
       "qod_strategy": "RANDOM",
       "last_login_at": "2026-02-03T08:00:00.000Z",
       "has_pinned_question": true,
@@ -402,11 +408,41 @@ Authorization: Bearer <your-jwt-token>
   ```
 - **说明**:
   - `email`：用户邮箱（可能为 null）
+  - `nickname`：用户昵称，未设置时为 `null`
   - `qod_strategy`：用户的「今日问题」策略，取值为 `RANDOM`、`PINNED`、`MIXED`
   - `last_login_at`：最后登录时间，ISO 8601 格式
   - `has_pinned_question`：当前用户是否至少 pin 了一道题（boolean）
   - `report_persona_id`：当前选中的周报 AI Persona 的 id，未选时为 `null`
   - `report_persona`：当前选中的 Persona 摘要（`id`、`label`），未选时为 `null`。可用于前端展示当前选中项，完整列表见 `GET /api/ai-insights/personas`
+
+#### 1.10 更新昵称
+
+- **URL**: `POST /api/me`
+- **描述**: 更新当前登录用户昵称
+- **认证**: 需要
+- **请求参数**:
+  ```json
+  {
+    "nickname": "Yuyi"
+  }
+  ```
+- **参数说明**:
+  - `nickname`：可选；`string | null`
+    - 传字符串：保存前会去除首尾空格，空字符串会被当作 `null`（清空昵称）
+    - 传 `null`：清空昵称
+    - 不传该字段（如 `{}`）：不做修改
+- **响应示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "nickname": "Yuyi"
+    }
+  }
+  ```
+- **错误响应**:
+  - `nickname` 类型非法（非 `string` 且非 `null`）：返回 `400 Bad Request`
+  - `nickname` 长度超过 64：返回 `400 Bad Request`
 
 ### 2. 引导页面
 

@@ -2,6 +2,12 @@
 
 ## Changelog
 
+### 2026-04-21
+
+- 新增 `GET /api/me/reminder` 接口：获取当前用户每日提醒时段
+- 新增 `POST /api/me/reminder` 接口：设置每日提醒时段（MORNING / AFTERNOON / EVENING / null 关闭）
+- 更新 `GET /api/me` 接口：响应新增 `reminder_slot` 字段
+
 ### 2026-04-08
 
 - 新增 `POST /api/me` 接口：更新当前用户昵称（需登录）；请求体可选 `nickname` 字段，不传（如 `{}`）表示不修改
@@ -402,7 +408,8 @@ Authorization: Bearer <your-jwt-token>
       "report_persona": {
         "id": "cludpersona123456789",
         "label": "Persona 1: The Soul Gardener"
-      }
+      },
+      "reminder_slot": "EVENING"
     }
   }
   ```
@@ -414,6 +421,7 @@ Authorization: Bearer <your-jwt-token>
   - `has_pinned_question`：当前用户是否至少 pin 了一道题（boolean）
   - `report_persona_id`：当前选中的周报 AI Persona 的 id，未选时为 `null`
   - `report_persona`：当前选中的 Persona 摘要（`id`、`label`），未选时为 `null`。可用于前端展示当前选中项，完整列表见 `GET /api/ai-insights/personas`
+  - `reminder_slot`：每日推送提醒时段，`null` 表示已关闭。详见 `GET /api/me/reminder`
 
 #### 1.10 更新昵称
 
@@ -443,6 +451,60 @@ Authorization: Bearer <your-jwt-token>
 - **错误响应**:
   - `nickname` 类型非法（非 `string` 且非 `null`）：返回 `400 Bad Request`
   - `nickname` 长度超过 64：返回 `400 Bad Request`
+
+#### 1.11 获取每日提醒时段
+
+- **URL**: `GET /api/me/reminder`
+- **描述**: 获取当前登录用户的每日推送提醒时段
+- **认证**: 需要
+- **响应示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "slot": "EVENING"
+    }
+  }
+  ```
+- **说明**:
+  - `slot` 取值及对应推送时间（用户本地时间）：
+
+    | slot | 推送时间 |
+    |------|---------|
+    | `MORNING` | 10:30 |
+    | `AFTERNOON` | 15:00 |
+    | `EVENING` | 21:30 |
+    | `null` | 已关闭提醒 |
+
+  - 新用户默认为 `EVENING`
+
+#### 1.12 设置每日提醒时段
+
+- **URL**: `POST /api/me/reminder`
+- **描述**: 设置当前登录用户的每日推送提醒时段，推送按用户本地时间（由 `POST /api/timezone` 设置）触发
+- **认证**: 需要
+- **请求参数**:
+  ```json
+  {
+    "slot": "MORNING"
+  }
+  ```
+- **参数说明**:
+  - `slot`：可选；取值 `MORNING` / `AFTERNOON` / `EVENING` / `null`
+    - 传具体时段：更新为对应时段
+    - 传 `null`：关闭每日提醒
+    - 不传该字段（如 `{}`）：不做修改，仅返回当前值
+- **响应示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "slot": "MORNING"
+    }
+  }
+  ```
+- **错误响应**:
+  - `slot` 值非法（非 `MORNING`、`AFTERNOON`、`EVENING`、`null`）：返回 `400 Bad Request`
 
 ### 2. 引导页面
 

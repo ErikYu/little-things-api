@@ -4,6 +4,8 @@
 
 ### 2026-04-21
 
+- 更新 `GET /api/weekly-report` 接口：新增顶层字段 `count`，包含各 Category 的 answer 数（`categories`，按 sequence 升序，包含 `url`，即使 count 为 0 也返回）及汇总（`total`）
+- 更新 `GET /api/weekly-report` 接口：`report_json` 结构调整——字段 `summary` 和 `gem { evidence, insight }` 保留语义不变，新增 `glance`（周报标题句）和 `reminders`（3 条提醒），移除原 `analyticalOverview` 和 `gem.scene`；`gem` 新增 `answer_id`（对应 answer 的 id）和 `icon { id, url }`（gem 对应 answer 的 icon，无 icon 时为 `null`）；`icon.url` 为读时动态解析的签名地址
 - 新增 `GET /api/me/reminder` 接口：获取当前用户每日提醒时段
 - 新增 `POST /api/me/reminder` 接口：设置每日提醒时段（MORNING / AFTERNOON / EVENING / null 关闭）
 - 更新 `GET /api/me` 接口：响应新增 `reminder_slot` 字段
@@ -23,7 +25,7 @@
 
 ### 2026-03-22
 
-- 更新 `GET /api/weekly-reports` 接口：列表项新增 `summary` 与 `icon` 字段，便于列表直接展示周报摘要和封面 icon
+- 更新 `GET /api/weekly-reports` 接口：列表项新增 `summary` 与 `icon` 字段；其中 `icon` 来自该周报 `report_json.gem.icon`
 
 ### 2026-03-18
 
@@ -978,22 +980,33 @@ Authorization: Bearer <your-jwt-token>
     "reflection_count": 9,
     "read_at": "2026-03-18T03:20:00.000Z",
     "report_json": {
-      "summary": "这一周你记录了 9 次反思...",
+      "glance": "A week of quiet observations.",
+      "summary": "This week felt like a quiet exhale, centered around finding peace in the mundane.",
       "gem": {
-        "scene": "On Wednesday afternoon, you sat by the window with a freshly brewed coffee in your hands.",
-        "evidence": "'At that moment, I suddenly relaxed and felt the day was not as bad as I thought.'",
-        "insight": "In that moment, you must have felt a quiet sense of being held by something small but steady."
+        "answer_id": "cludanswer123456789",
+        "evidence": "...喝了一杯手冲咖啡，看着窗外的树叶发呆...",
+        "insight": "In that moment, you must have felt the world slow down, allowing you to breathe.",
+        "icon": { "id": "cludicon123456789", "url": "https://..." }
       },
-      "analyticalOverview": [
-        { "title": "咖啡与专注", "content": "Coffee is your reliable focus trigger..." },
-        { "title": "人际联结", "content": "..." },
-        { "title": "情绪基调", "content": "..." }
+      "reminders": [
+        "Let your body rest during the weekend.",
+        "Hold onto that quiet morning feeling.",
+        "Trust the pace of your own progress."
       ]
     },
     "icons": [
       { "id": "cludicon123456789", "url": "https://..." },
       { "id": "cludicon098765432", "url": "https://..." }
-    ]
+    ],
+    "count": {
+      "categories": [
+        { "id": "catid1", "name": "small joys", "url": "https://...", "count": 3 },
+        { "id": "catid2", "name": "small wins", "url": "https://...", "count": 1 },
+        { "id": "catid3", "name": "warm hearts", "url": "https://...", "count": 0 },
+        { "id": "catid4", "name": "inner peace", "url": "https://...", "count": 6 }
+      ],
+      "total": 10
+    }
   }
   ```
 - **错误响应**:
@@ -1001,9 +1014,12 @@ Authorization: Bearer <your-jwt-token>
   - 传了 `week` 但格式错误（非 `YYYY-Wnn`）：返回 `400 Bad Request`
 - **说明**:
   - 周报由后台或 admin 侧生成并写入库，本接口仅读取，不调用 AI 生成
-  - `report_json` 可能为 `null`（例如报告尚未生成完仅有 Tier1 时），`icons` 仍会返回
-  - `icons` 中 `url` 为签名后的可访问地址
+  - `report_json` 可能为 `null`（报告尚未生成时），`icons` 仍会返回
+  - `report_json.gem.icon` 可能为 `null`（对应 answer 尚无生成的 icon 时）
+  - `report_json.gem.icon.url` 及 `icons[].url` 均为读时动态解析的签名地址，不持久化存储
   - `read_at`：`null` 表示未读，非 `null` 表示已读时间（ISO 8601）
+  - `count.categories` 按一级 Category 的 `sequence` 升序排列，返回所有一级分类；即使该报告周期内某分类 answer 数为 `0` 也会返回
+  - `count.categories[].url` 为对应 Category icon 的签名地址；`count.total` 为该报告周期内所有 answer 总数
 
 #### 5.4 获取周报列表
 
@@ -1043,7 +1059,7 @@ Authorization: Bearer <your-jwt-token>
   - 按 week 降序返回（最新在前）
   - `read_at`：`null` 表示未读，非 `null` 表示已读时间（ISO 8601）
   - `summary`：来自该周报 `report_json.summary`，当报告内容未完成时可能为 `null`
-  - `icon`：该周报首个 icon 的签名地址（`{ id, url }`）；无 icon 时为 `null`
+  - `icon`：来自该周报 `report_json.gem.icon` 的签名地址（`{ id, url }`）；无 icon 时为 `null`
   - 示例：
     - `GET /api/weekly-reports?isRead=false`：仅未读
     - `GET /api/weekly-reports?isRead=true`：仅已读
@@ -1189,6 +1205,18 @@ Authorization: Bearer <your-jwt-token>
 
   data: {"status":"GENERATED","url":"https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx"}
   ```
+
+## APN 推送通知 Topic
+
+推送通知的 `payload` 中包含 `topic` 字段，客户端根据该字段决定跳转行为。
+
+| Topic | 触发场景 | 建议跳转目标 |
+|---|---|---|
+| `stamp_reveal` | Icon 生成成功（Stamp Ready） | 回答界面 Stamp Reveal |
+| `stamp_thread` | Icon LLM 判断为 Warn 或 Block | Thread 界面 |
+| `weekly_report` | Weekly Report 生成完成 | Arcade 界面（Ready to Print） |
+| `today_spark_unanswered` | Daily Whisper，用户今日未回答 Today's Spark | Today's Spark 对应问题页 |
+| `daily_calendar` | Daily Whisper，用户今日已回答 Today's Spark | Calendar 界面 |
 
 ## 错误响应
 

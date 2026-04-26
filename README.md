@@ -2,6 +2,12 @@
 
 ## Changelog
 
+### 2026-04-26
+
+- 新增 `POST /api/answers/icons/:id/read` 接口：将指定 icon 标记为已读（幂等）
+- 更新 `POST /api/answers`、`GET /api/answers`、`GET /api/calendar-view`、`GET /api/thread-view`：响应中的 `icon` 新增 `read_at` 字段（`null` 表示未读）
+- 更新 `GET /api/weekly-report/current`：`icons[]` 新增 `read_at` 字段（`null` 表示未读）
+
 ### 2026-04-21
 
 - 更新 `GET /api/weekly-report` 接口：新增顶层字段 `count`，包含各 Category 的 answer 数（`categories`，按 sequence 升序，包含 `url`，即使 count 为 0 也返回）及汇总（`total`）
@@ -216,7 +222,7 @@ Authorization: Bearer <your-jwt-token>
   ```
 - **说明**: `user.qod_strategy` 取值为 `RANDOM`、`PINNED`、`MIXED`
 
-#### 1.3 邮箱注册
+#### 1.4 邮箱注册
 
 - **URL**: `POST /api/auth/signup`
 - **描述**: 使用邮箱和密码注册新用户
@@ -244,7 +250,7 @@ Authorization: Bearer <your-jwt-token>
   ```
 - **说明**: 新用户默认 `qod_strategy` 为 `RANDOM`
 
-#### 1.4 刷新 Token
+#### 1.5 刷新 Token
 
 - **URL**: `POST /api/auth/refresh`
 - **描述**: 使用 refresh token 获取新的 access token
@@ -272,7 +278,27 @@ Authorization: Bearer <your-jwt-token>
 - **说明**:
   - `user.qod_strategy` 为用户的「今日问题」策略，取值为 `RANDOM`、`PINNED`、`MIXED`
 
-#### 1.5 保存设备Token
+#### 1.6 注销账号（永久删除）
+
+- **URL**: `POST /api/auth/delete-account`
+- **描述**: 永久注销当前账号。此操作不可逆，执行后用户端视角该账号永久消失。
+- **认证**: 需要
+- **请求参数**: 无
+- **响应示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "success": true
+    }
+  }
+  ```
+- **说明**:
+  - 注销后当前账号的 access token / refresh token 会失效
+  - 原账号将无法继续登录
+  - 用户可使用原邮箱或第三方身份重新注册，但会创建全新账号，不会看到注销前数据
+
+#### 1.7 保存设备Token
 
 - **URL**: `POST /api/device-token`
 - **描述**: 保存用户设备Token，用于后续推送通知功能
@@ -293,7 +319,7 @@ Authorization: Bearer <your-jwt-token>
   }
   ```
 
-#### 1.6 保存用户时区
+#### 1.8 保存用户时区
 
 - **URL**: `POST /api/timezone`
 - **描述**: 接收一个带 UTC 偏移的 ISO 8601 时间戳，解析其中的时区偏移并存储到用户记录中，用于后续按本地时间推送每日提醒（Daily Whisper）
@@ -304,6 +330,7 @@ Authorization: Bearer <your-jwt-token>
     "timestamp": "2026-04-05T09:00:00+08:00"
   }
   ```
+
   - `timestamp`：必填，ISO 8601 格式，必须包含 UTC 偏移（如 `+08:00`、`-05:00`、`+00:00`）
 - **响应示例**:
   ```json
@@ -318,7 +345,7 @@ Authorization: Bearer <your-jwt-token>
   - `timestamp` 缺失：返回 `400 Bad Request`
   - `timestamp` 不含 UTC 偏移：返回 `400 Bad Request`
 
-#### 1.7 更新 QoD 策略
+#### 1.9 更新 QoD 策略
 
 - **URL**: `POST /api/qod-strategy`
 - **描述**: 用户修改自己的「今日问题」策略（Question of the Day 策略），仅能修改当前登录用户自己的配置
@@ -347,7 +374,7 @@ Authorization: Bearer <your-jwt-token>
   - **PINNED**：仅从用户 pinned 题目中返回（需要至少 3 个 pinned 才可选）
   - **MIXED**：1 题来自 pinned，2 题来自随机（随机部分不包含 pinned；需要至少 1 个 pinned 才可选）
 
-#### 1.8 获取 QoD 策略选项
+#### 1.10 获取 QoD 策略选项
 
 - **URL**: `GET /api/qod-strategy-options`
 - **描述**: 获取可用的「今日问题」策略选项，包含策略描述和可用性状态
@@ -391,7 +418,7 @@ Authorization: Bearer <your-jwt-token>
     - `PINNED` 和 `MIXED`：仅当用户至少有一个星标问题时可用
   - 前端可根据 `disabled` 字段决定是否禁用相应选项
 
-#### 1.9 获取个人信息
+#### 1.11 获取个人信息
 
 - **URL**: `GET /api/me`
 - **描述**: 获取当前登录用户的个人信息
@@ -425,7 +452,7 @@ Authorization: Bearer <your-jwt-token>
   - `report_persona`：当前选中的 Persona 摘要（`id`、`label`），未选时为 `null`。可用于前端展示当前选中项，完整列表见 `GET /api/ai-insights/personas`
   - `reminder_slot`：每日推送提醒时段，`null` 表示已关闭。详见 `GET /api/me/reminder`
 
-#### 1.10 更新昵称
+#### 1.12 更新昵称
 
 - **URL**: `POST /api/me`
 - **描述**: 更新当前登录用户昵称
@@ -454,7 +481,7 @@ Authorization: Bearer <your-jwt-token>
   - `nickname` 类型非法（非 `string` 且非 `null`）：返回 `400 Bad Request`
   - `nickname` 长度超过 64：返回 `400 Bad Request`
 
-#### 1.11 获取每日提醒时段
+#### 1.13 获取每日提醒时段
 
 - **URL**: `GET /api/me/reminder`
 - **描述**: 获取当前登录用户的每日推送提醒时段
@@ -471,16 +498,16 @@ Authorization: Bearer <your-jwt-token>
 - **说明**:
   - `slot` 取值及对应推送时间（用户本地时间）：
 
-    | slot | 推送时间 |
-    |------|---------|
-    | `MORNING` | 10:30 |
-    | `AFTERNOON` | 15:00 |
-    | `EVENING` | 21:30 |
-    | `null` | 已关闭提醒 |
+    | slot        | 推送时间   |
+    | ----------- | ---------- |
+    | `MORNING`   | 10:30      |
+    | `AFTERNOON` | 15:00      |
+    | `EVENING`   | 21:30      |
+    | `null`      | 已关闭提醒 |
 
   - 新用户默认为 `EVENING`
 
-#### 1.12 设置每日提醒时段
+#### 1.14 设置每日提醒时段
 
 - **URL**: `POST /api/me/reminder`
 - **描述**: 设置当前登录用户的每日推送提醒时段，推送按用户本地时间（由 `POST /api/timezone` 设置）触发
@@ -618,7 +645,8 @@ Authorization: Bearer <your-jwt-token>
       },
       "icon": {
         "id": "cludicon123456789",
-        "status": "PENDING"
+        "status": "PENDING",
+        "read_at": null
       }
     }
   }
@@ -655,8 +683,10 @@ Authorization: Bearer <your-jwt-token>
           "created_ymd": "2024-01-15",
           "created_tms": "2024-01-15 08:30:45",
           "icon": {
+            "id": "cludicon123456789",
             "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx",
-            "status": "GENERATED"
+            "status": "GENERATED",
+            "read_at": null
           }
         },
         {
@@ -665,8 +695,10 @@ Authorization: Bearer <your-jwt-token>
           "created_ymd": "2024-01-14",
           "created_tms": "2024-01-14 10:20:30",
           "icon": {
+            "id": "cludicon098765432",
             "url": "",
-            "status": "PENDING"
+            "status": "PENDING",
+            "read_at": null
           }
         }
       ],
@@ -683,10 +715,33 @@ Authorization: Bearer <your-jwt-token>
     - 如果不传递limit和cursor，会返回所有回答
     - 首次调用时传递limit，cursor不用传，此时会返回固定条数的answers，如果`hasMore`为true，则说明仍然有值，要继续获取，则需要传递cursor字段，值为上一个接口中的`pagination.nextCursor`值，直到`hasMore`变为false
   - `icon` 字段说明：
+    - `id`：icon 的唯一标识
     - `status` 可能的值：`PENDING`（生成中）、`GENERATED`（已生成）、`FAILED`（生成失败）
+    - `read_at`：`null` 表示未读；非 `null` 表示已读时间（ISO 8601）
     - 当 `status` 为 `GENERATED` 时，`url` 字段包含签名后的图标访问地址（有效期1小时）
     - 当 `status` 为 `PENDING` 或 `FAILED` 时，`url` 为空字符串
     - 如果答案没有关联的图标，`icon` 为 `null`
+
+#### 3.4 标记 Icon 已读
+
+- **URL**: `POST /api/answers/icons/:id/read`
+- **描述**: 将指定 icon 标记为已读（幂等）。如果该 icon 已经是已读，返回原有 `read_at`。
+- **认证**: 需要
+- **路径参数**:
+  - `id`: icon ID
+- **响应示例**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "cludicon123456789",
+      "read_at": "2026-04-26T14:10:00.000Z"
+    }
+  }
+  ```
+- **错误响应**:
+  - icon 不存在：返回 `404 Not Found`
+  - 无权限（icon 不属于当前用户）：返回 `403 Forbidden`
 
 #### 3.3 删除回答
 
@@ -851,7 +906,8 @@ Authorization: Bearer <your-jwt-token>
             "icon": {
               "id": "cludicon123456789",
               "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx",
-              "status": "GENERATED"
+              "status": "GENERATED",
+              "read_at": null
             }
           },
           {
@@ -869,7 +925,8 @@ Authorization: Bearer <your-jwt-token>
             "icon": {
               "id": "cludicon987654321",
               "url": "",
-              "status": "PENDING"
+              "status": "PENDING",
+              "read_at": null
             }
           }
         ]
@@ -944,7 +1001,8 @@ Authorization: Bearer <your-jwt-token>
             "icon": {
               "id": "cludicon123456789",
               "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx",
-              "status": "GENERATED"
+              "status": "GENERATED",
+              "read_at": null
             }
           },
           {
@@ -954,7 +1012,8 @@ Authorization: Bearer <your-jwt-token>
             "icon": {
               "id": "cludicon098765432",
               "url": "",
-              "status": "PENDING"
+              "status": "PENDING",
+              "read_at": null
             }
           }
         ]
@@ -988,11 +1047,7 @@ Authorization: Bearer <your-jwt-token>
         "insight": "In that moment, you must have felt the world slow down, allowing you to breathe.",
         "icon": { "id": "cludicon123456789", "url": "https://..." }
       },
-      "reminders": [
-        "Let your body rest during the weekend.",
-        "Hold onto that quiet morning feeling.",
-        "Trust the pace of your own progress."
-      ]
+      "reminders": ["Let your body rest during the weekend.", "Hold onto that quiet morning feeling.", "Trust the pace of your own progress."]
     },
     "icons": [
       { "id": "cludicon123456789", "url": "https://..." },
@@ -1148,13 +1203,15 @@ Authorization: Bearer <your-jwt-token>
         "id": "cludicon123456789",
         "answer_id": "cludanswer123456789",
         "created_ymd": "2026-03-16",
-        "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx"
+        "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon123456789-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx",
+        "read_at": null
       },
       {
         "id": "cludicon987654321",
         "answer_id": "cludanswer987654321",
         "created_ymd": "2026-03-17",
-        "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon987654321-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx"
+        "url": "https://your-oss-bucket.oss-region.aliyuncs.com/icons/cludicon987654321-1234567890.webp?Expires=1234567890&OSSAccessKeyId=xxx&Signature=xxx",
+        "read_at": null
       }
     ]
   }
@@ -1166,6 +1223,7 @@ Authorization: Bearer <your-jwt-token>
   - 仅返回当前周范围内（基于 answer 的 `created_ymd`）的数据
   - 返回结果按 icon 的 `created_at` 升序（最早生成在前）
   - `url` 为签名后的可访问地址
+  - `read_at`：`null` 表示未读；非 `null` 表示已读时间（ISO 8601）
   - 无数据时返回 `{ "minAnswersToGenerateReport": 6, "icons": [] }`
 
 ### 7. 图标生成
@@ -1210,13 +1268,13 @@ Authorization: Bearer <your-jwt-token>
 
 推送通知的 `payload` 中包含 `topic` 字段，客户端根据该字段决定跳转行为。
 
-| Topic | 触发场景 | 建议跳转目标 |
-|---|---|---|
-| `stamp_reveal` | Icon 生成成功（Stamp Ready） | 回答界面 Stamp Reveal |
-| `stamp_thread` | Icon LLM 判断为 Warn 或 Block | Thread 界面 |
-| `weekly_report` | Weekly Report 生成完成 | Arcade 界面（Ready to Print） |
-| `today_spark_unanswered` | Daily Whisper，用户今日未回答 Today's Spark | Today's Spark 对应问题页 |
-| `daily_calendar` | Daily Whisper，用户今日已回答 Today's Spark | Calendar 界面 |
+| Topic                    | 触发场景                                    | 建议跳转目标                  |
+| ------------------------ | ------------------------------------------- | ----------------------------- |
+| `stamp_reveal`           | Icon 生成成功（Stamp Ready）                | 回答界面 Stamp Reveal         |
+| `stamp_thread`           | Icon LLM 判断为 Warn 或 Block               | Thread 界面                   |
+| `weekly_report`          | Weekly Report 生成完成                      | Arcade 界面（Ready to Print） |
+| `today_spark_unanswered` | Daily Whisper，用户今日未回答 Today's Spark | Today's Spark 对应问题页      |
+| `daily_calendar`         | Daily Whisper，用户今日已回答 Today's Spark | Calendar 界面                 |
 
 ## 错误响应
 
